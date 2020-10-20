@@ -4,8 +4,7 @@
 #define FRACTION 1 << 14
 #define FLOAT(n) n *FRACTION
 #define ROUND_ZERO(x) ((x) / FRACTION)
-#define ROUND_NEAR(x) ((x) >= 0 ? ((x) + FRACTION / 2) / (FRACTION) : \
-                                    ((x)-FRACTION / 2) / (FRACTION))
+#define ROUND_NEAR(x) ((x) >= 0 ? ((x) + FRACTION / 2) / (FRACTION) : ((x)-FRACTION / 2) / (FRACTION))
 #define FLOAT_ADD(x, y) ((x) + (y))
 #define FLOAT_SUB(x, y) ((x) - (y))
 #define INT_ADD(x, n) ((x))+(n)*FRACTION)

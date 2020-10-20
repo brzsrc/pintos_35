@@ -223,11 +223,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-<<<<<<< HEAD
-  if(t->priority > thread_get_priority()){
-=======
   if (thread_current()->priority < priority) {
->>>>>>> origin/Xingzhi
     thread_yield();
   }
 
@@ -354,16 +350,12 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-<<<<<<< HEAD
-  if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, 
-        thread_compare_priority, NULL);
-=======
+
   if (cur != idle_thread)
     //list_push_back (&ready_list, &cur->elem);
     list_insert_ordered(&ready_list, &cur->elem, 
                         &thread_compare_priority, NULL);
->>>>>>> origin/Xingzhi
+
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -391,14 +383,10 @@ void
 thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
-<<<<<<< HEAD
   struct list_elem *e = list_front(&ready_list);
   if(new_priority < list_entry(e, struct thread, elem)->priority){
       thread_yield();
   }
-=======
-  thread_yield();
->>>>>>> origin/Xingzhi
 }
 
 /* Returns the current thread's priority. */
