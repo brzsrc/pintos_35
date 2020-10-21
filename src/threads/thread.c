@@ -71,12 +71,16 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 <<<<<<< HEAD
+<<<<<<< HEAD
 static bool thread_compare_priority(struct list_elem *elem, 
       struct list_elem *e, void *aux UNUSED);
 =======
 static bool thread_compare_priority (const struct list_elem *t1, 
           const struct list_elem *t2, void *aux UNUSED);
 >>>>>>> origin/Xingzhi
+=======
+
+>>>>>>> 1f5fc69a1464e982b1b4ffdadfa285f2fdda5151
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -232,7 +236,7 @@ thread_create (const char *name, int priority,
 
 /* Compare the priority between two threads and return 
   true if first has higher priority. */
-static bool
+bool
 thread_compare_priority (const struct list_elem *t1, 
 const struct list_elem *t2, void *aux UNUSED)
 {
@@ -517,7 +521,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
+  // list_push_back (&all_list, &t->allelem);
+  list_insert_ordered(&all_list, &t->allelem, 
+                      &thread_compare_priority, NULL);
   intr_set_level (old_level);
 }
 
