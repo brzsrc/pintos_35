@@ -32,6 +32,15 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+static int
+get_max_priority_in_a_lock(struct lock *lock);
+
+static void 
+effective_priority_maxmise(struct lock *lock);
+
+static void 
+effective_priority_update(struct lock *lock);
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -68,8 +77,8 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_insert_ordered(&sema->waiters,&thread_current ()->elem, 
-                          thread_compare_priority, NULL);
+      list_insert_ordered(&sema->waiters, &thread_current ()->elem, 
+                          &thread_compare_priority, NULL);
       thread_block ();
     }
   sema->value--;
@@ -199,8 +208,35 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
 
   sema_down (&lock->semaphore);
+  //此时会不会被intrrupt？？？？？？？
+  effective_priority_maxmise(lock);
+  list_push_back (&thread_current()->locks, &lock->elem);
   lock->holder = thread_current ();
 }
+
+static int
+get_max_priority_in_a_lock(struct lock *lock){
+  int priority_max = PRI_MIN;
+  struct list waiters = lock->semaphore.waiters;
+  if(!list_empty(&waiters)){
+    struct list_elem *new_elem = list_front(&waiters);
+    priority_max = list_entry(new_elem, struct thread, elem)->effective_priority;
+  }
+  return priority_max;
+}
+
+/* If the new max priority that we can get from the new lock waiters 
+   is larger than the current effective priority the thread holds, 
+   update the the current effective priority with the new priority 
+   value */
+static void 
+effective_priority_maxmise(struct lock *lock){
+  int new_priority = get_max_priority_in_a_lock(lock);
+  if(new_priority > thread_get_priority()){
+    thread_current()->effective_priority = new_priority;
+  }
+}
+
 
 /* Tries to acquires LOCK and returns true if successful or false
    on failure.  The lock must not already be held by the current
@@ -234,7 +270,33 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+  effective_priority_update(lock);
   sema_up (&lock->semaphore);
+}
+
+static void 
+effective_priority_update(struct lock *lock) {
+  struct thread* t_cur = thread_current();
+  struct list_elem *e;
+  int priority_in_lock = get_max_priority_in_a_lock(lock);
+  struct list locks = t_cur->locks;
+  
+  list_remove(&lock->elem);
+  if (priority_in_lock == thread_get_priority()){
+    t_cur->effective_priority = t_cur->priority;
+
+    if (!list_empty(&locks)) {
+      for (e = list_begin (&locks); e != list_end (&locks); e = list_next (e)){
+        /* the threads waiting for the lock */
+        struct list threads_waiting = list_entry(e, struct lock, elem)-> semaphore.waiters;
+        struct list_elem *elem_temp = list_front(&threads_waiting);
+        int new_priority = list_entry(elem_temp, struct thread, elem)-> effective_priority;
+
+        if(t_cur->effective_priority < new_priority)
+            t_cur->effective_priority = new_priority;
+      }
+    }
+  }
 }
 
 /* Returns true if the current thread holds LOCK, false
