@@ -362,11 +362,28 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  //enum intr_level old_level = intr_disable();
+  // if(thread_get_priority() == thread_current()->effective_priority && new_priority < thread_get_priority()){
+
+  // }
   thread_current ()->priority = new_priority;
-  if(new_priority > thread_get_priority() || list_empty(&thread_current()->locks)){
+  struct list *locks = &thread_current()->locks;
+  struct list_elem *e;
+  if(new_priority > thread_get_priority() || list_empty(locks)){
     thread_current()->effective_priority = new_priority;
+  }else {
+    int max_priority = 0;
+    for (e = list_begin (locks); e != list_end (locks); e = list_next (e)){
+      /* the threads waiting for lock e */
+      struct list threads_waiting = list_entry(e, struct lock, elem)-> semaphore.waiters;
+      if (list_empty(&threads_waiting)) continue;
+      struct list_elem *elem_temp = list_begin(&threads_waiting);
+      int locked_thread_priority = list_entry(elem_temp, struct thread, elem)-> effective_priority;
+
+      max_priority = locked_thread_priority >= max_priority ? locked_thread_priority : max_priority;
+    }
+    thread_current()->effective_priority = new_priority >= max_priority ? new_priority : max_priority;
   }
+  
 
   if(!list_empty(&ready_list)){
     struct list_elem *e = list_front(&ready_list);
@@ -375,8 +392,6 @@ thread_set_priority (int new_priority)
       thread_yield();
     }
   }
-
-  //intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
