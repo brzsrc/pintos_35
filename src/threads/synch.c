@@ -269,22 +269,11 @@ lock_release (struct lock *lock)
   sema_up (&lock->semaphore);
 }
 
-// static int
-// get_highest_priority(struct lock *lock){
-//   int priority_max = PRI_MIN;
-//   struct list locks = lock->holder->locks;
-//   if(!list_empty(&locks)){
-//     struct list_elem *new_elem = list_front(&locks);
-//     priority_max = (list_entry(new_elem, struct thread, elem)->effective_priority);
-//   }
-//   return priority_max;
-// }
-
 static void 
 cancel_donation(struct lock *lock) {
-  char *thread_name = lock->holder->name;
-  if (thread_name[0] == 'm' && thread_name[1] == 'a' 
-      && thread_name[2] == 'i' && thread_name[3] == 'n' && thread_name[4] == '\0') return;
+  // char *thread_name = lock->holder->name;
+  // if (thread_name[0] == 'm' && thread_name[1] == 'a' 
+  //     && thread_name[2] == 'i' && thread_name[3] == 'n' && thread_name[4] == '\0') return;
 
   struct thread* t_cur = thread_current();
   struct list_elem *e;
@@ -295,7 +284,7 @@ cancel_donation(struct lock *lock) {
   if (!list_empty(locks)) {
     int max_priority = 0;
     for (e = list_begin (locks); e != list_end (locks); e = list_next (e)){
-      /* the threads waiting for the lock */
+      /* the threads waiting for lock e */
       struct list threads_waiting = list_entry(e, struct lock, elem)-> semaphore.waiters;
       if (list_empty(&threads_waiting)) continue;
       struct list_elem *elem_temp = list_begin(&threads_waiting);
