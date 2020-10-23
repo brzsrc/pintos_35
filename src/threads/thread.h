@@ -92,7 +92,8 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
     
     int64_t wake_up_at;                 /* wake up at this timer tick */
-    
+    struct thread *thread_waiting_for;   /* the thread that holds the lock this thread needs */
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     struct list locks;                  /* The list of all the locks the thread holds */

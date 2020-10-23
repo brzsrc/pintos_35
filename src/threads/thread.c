@@ -362,13 +362,21 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
+  //enum intr_level old_level = intr_disable();
   thread_current ()->priority = new_priority;
+  if(new_priority > thread_get_priority() || list_empty(&thread_current()->locks)){
+    thread_current()->effective_priority = new_priority;
+  }
+
   if(!list_empty(&ready_list)){
     struct list_elem *e = list_front(&ready_list);
-    if(new_priority < list_entry(e, struct thread, elem)->priority){
+    if(thread_get_priority() 
+        < list_entry(e, struct thread, elem)->effective_priority){
       thread_yield();
     }
   }
+
+  //intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -500,7 +508,6 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->locks);
 
   old_level = intr_disable ();
-  // list_push_back (&all_list, &t->allelem);
   list_insert_ordered(&all_list, &t->allelem, 
                       &thread_compare_priority, NULL);
   intr_set_level (old_level);
@@ -622,8 +629,8 @@ bool
 thread_compare_priority (const struct list_elem *t1, 
 const struct list_elem *t2, void *aux UNUSED)
 {
-  return list_entry(t1, struct thread, elem)->priority > 
-          list_entry(t2, struct thread, elem)->priority;
+  return list_entry(t1, struct thread, elem)->effective_priority >= 
+          list_entry(t2, struct thread, elem)->effective_priority;
 }
 
 /* Offset of `stack' member within `struct thread'.

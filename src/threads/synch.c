@@ -211,9 +211,11 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  thread_current()->thread_waiting_for = lock->holder;
   apply_donation(lock);
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  thread_current()->thread_waiting_for = NULL;
   list_push_back (&thread_current()->locks, &lock->elem);
 }
 
@@ -224,11 +226,12 @@ lock_acquire (struct lock *lock)
    value */
 static void 
 apply_donation(struct lock *lock){
-  // int new_priority = get_highest_priority(lock);
   int new_priority = thread_get_priority();
-  if (lock->holder == NULL) return;
-  if(new_priority > lock->holder->effective_priority){
-    lock->holder->effective_priority = new_priority;
+  struct thread *holder = lock->holder;
+
+  while (holder != NULL && new_priority > holder->effective_priority) {
+    holder->effective_priority = new_priority;
+    holder = holder->thread_waiting_for;
   }
 }
 
