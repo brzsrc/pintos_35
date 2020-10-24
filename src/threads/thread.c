@@ -644,7 +644,7 @@ bool
 thread_compare_priority (const struct list_elem *t1, 
 const struct list_elem *t2, void *aux UNUSED)
 {
-  return list_entry(t1, struct thread, elem)->effective_priority >= 
+  return list_entry(t1, struct thread, elem)->effective_priority >
           list_entry(t2, struct thread, elem)->effective_priority;
 }
 
