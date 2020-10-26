@@ -276,22 +276,23 @@ lock_release (struct lock *lock)
 
 static void 
 cancel_donation(struct lock *lock) {
-  // char *thread_name = lock->holder->name;
-  // if (thread_name[0] == 'm' && thread_name[1] == 'a' 
-  //     && thread_name[2] == 'i' && thread_name[3] == 'n' && thread_name[4] == '\0') return;
-
   struct thread* t_cur = thread_current();
   struct list_elem *e;
   struct list *locks = &t_cur->locks;
   
+  // The t_cur no longer holds this lock
   list_remove(&lock->elem);
 
   if (!list_empty(locks)) {
+    // This thread may receive some other donations because it is holding on
+    // to some other locks
     int max_priority = 0;
     for (e = list_begin (locks); e != list_end (locks); e = list_next (e)){
-      /* the threads waiting for lock e */
+      /* the threads waiting for lock e, who are donating */
       struct list threads_waiting = list_entry(e, struct lock, elem)-> semaphore.waiters;
       if (list_empty(&threads_waiting)) continue;
+      // Since waiters are sorted according to their priority, the first one has the
+      // highest priority
       struct list_elem *elem_temp = list_begin(&threads_waiting);
       int new_priority = list_entry(elem_temp, struct thread, elem)-> effective_priority;
 
@@ -302,6 +303,8 @@ cancel_donation(struct lock *lock) {
   }
   else
   {
+    // The t_cur does not hold any other lock
+    // Hence t_cur does not receive any donation
     t_cur->effective_priority = t_cur->priority;
   }
   
