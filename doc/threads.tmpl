@@ -17,6 +17,9 @@ FirstName LastName <email@domain.example>
 >> If you have any preliminary comments on your submission, or notes for the
 >> markers, please give them here.
 
+#SSR priority donation + JST BSD scheduler
+#No 64 queues
+
 >> Please cite any offline or online sources you consulted while preparing your 
 >> submission, other than the Pintos documentation, course text, lecture notes 
 >> and course staff.
@@ -30,21 +33,35 @@ FirstName LastName <email@domain.example>
 >> Copy here the declaration of each new or changed `struct' or `struct' member,
 >> global or static variable, `typedef', or enumeration.  
 >> Identify the purpose of each in roughly 25 words.
+struct thread {
+    ...
+    int priority;                       /* Base Priority. */
+    int effective_priority;             /* Effective priority */
+    struct thread *thread_waiting_for;  /* the thread that holds the lock this thread needs */
+    struct list locks;                  /* The list of all the locks the thread holds */
+}
 
 >> A2: (4 marks) 
 >> Draw a diagram that illustrates a nested donation in your structure and 
 >> briefly explain how this works.
+//TODO: draw diagrams
+Suppose there are three threads: thread A (priority 5), thread B (priority 3), thread C (priority 1). Thread C holds lock B that thread B wants and thread B holds lock A that thread A wants. Since thread A has the highest priority, thread A is the running thread. As thread A invokes lock_acquire(), thread A will first donate to the thread that holds lock A, setting thread B's effective_priority to 5. Then, thread A will donate to the owner of the lock thread B is waiting for, which is thread C, and set thread C's effective_priority to 5 as well. This completes a nested priority donation. 
 
 ---- ALGORITHMS ----
 
 >> A3: (3 marks) 
 >> How do you ensure that the highest priority waiting thread wakes up first for
 >> a (i) lock, (ii) semaphore, or (iii) condition variable?
+In a semaphore, threads that waits for the semaphore to signal are stored in the semaphore's waiters list. When sema_up is invoked, the waiter list is first sorted according to the threads' priorities, ensuring that the highest priority thread is popped out from the list and unblocked.
+In a lock, since the lock is implemented using semaphores, the highest priority thread is always unblocked first.
+In a condition variable, the cond->waiters list is maintained sorted from the highest priority thread to lowest ones, as whenever a thread is added to the cond->waiters list, it is inserted in an order according to its priority. Hence when the condition variable signals, the highest priority threads is popped out from the front of the list and is unblocked first.
 
 >> A4: (3 marks)
 >> Describe the sequence of events when a call to lock_acquire() causes a 
 >> priority donation. 
 >> How is nested donation handled?
+When a thread calls lock_acquire(), it first
+
 
 >> A5: (3 marks)
 >> Describe the sequence of events when lock_release() is called on a lock that 
