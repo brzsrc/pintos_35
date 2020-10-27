@@ -41,6 +41,11 @@ struct thread {
     struct list locks;                  /* The list of all the locks the thread holds */
 }
 
+struct lock {
+    ...
+    struct list_elem elem;      /* List elem for the list(locks) in thread.h */
+}
+
 >> A2: (4 marks) 
 >> Draw a diagram that illustrates a nested donation in your structure and 
 >> briefly explain how this works.
