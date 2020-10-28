@@ -246,7 +246,6 @@ void lock_release(struct lock *lock) {
 
 static void cancel_donation(struct lock *lock) {
   struct thread *t_cur = thread_current();
-  struct list_elem *e;
   struct list *locks = &t_cur->locks;
 
   // The t_cur no longer holds this lock

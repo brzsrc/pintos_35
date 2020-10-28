@@ -40,6 +40,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/* 64 queues */
+//static struct list priority_queues[64];
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame {
   void *eip;             /* Return address. */
@@ -430,6 +433,7 @@ int thread_get_max_donated_priority(struct list *locks) {
       max_p = max_p_for_this_lock >= max_p ? max_p_for_this_lock : max_p;
     }
   }
+  return max_p;
 }
 
 /* Sets the current thread's nice value to NICE. */
