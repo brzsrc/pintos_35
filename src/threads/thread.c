@@ -406,23 +406,29 @@ int thread_get_priority(void) {
   return thread_current()->effective_priority;
 }
 
+/* Access:  */
 int thread_get_max_donated_priority(struct list *locks) {
   struct list_elem *e;
   // This thread may receive some other donations because it is holding on
   // to some other locks
-  int max_priority = 0;
+  int max_p = 0;
   for (e = list_begin(locks); e != list_end(locks); e = list_next(e)) {
     /* the threads waiting for lock e, who are donating */
-    struct list threads_waiting =
-        list_entry(e, struct lock, elem)->semaphore.waiters;
-    if (list_empty(&threads_waiting)) continue;
-    // Since waiters are sorted according to their priority, the first one has
-    // the highest priority
-    struct list_elem *elem_temp = list_begin(&threads_waiting);
-    int new_priority =
-        list_entry(elem_temp, struct thread, elem)->effective_priority;
+    struct list threads_waiting;
+    threads_waiting = list_entry(e, struct lock, elem)->semaphore.waiters;
 
-    max_priority = new_priority >= max_priority ? new_priority : max_priority;
+    if (list_empty(&threads_waiting)) {
+      // No donor for this lock
+      continue;
+    } else {
+      // Since waiters are sorted according to their priority, the first one has
+      // the highest priority
+      struct list_elem *e = list_begin(&threads_waiting);
+      struct thread *max_donor = list_entry(e, struct thread, elem);
+      int max_p_for_this_lock = max_donor->effective_priority;
+
+      max_p = max_p_for_this_lock >= max_p ? max_p_for_this_lock : max_p;
+    }
   }
 }
 
