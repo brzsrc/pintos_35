@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+
 #include "fixed_point.h"
 
 /* States in a thread's life cycle. */
@@ -80,27 +81,26 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-struct thread
-  {
-    /* Owned by thread.c. */
-    tid_t tid;                          /* Thread identifier. */
-    enum thread_status status;          /* Thread state. */
-    char name[16];                      /* Name (for debugging purposes). */
-    uint8_t *stack;                     /* Saved stack pointer. */
-    struct list_elem allelem;           /* List element for all threads list. */
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element. */
-    
-    int nice;           /* Niceness of the thread. */
-    fixed_t recent_cpu; /* Recent CPU. */
+struct thread {
+  /* Owned by thread.c. */
+  tid_t tid;                 /* Thread identifier. */
+  enum thread_status status; /* Thread state. */
+  char name[16];             /* Name (for debugging purposes). */
+  uint8_t *stack;            /* Saved stack pointer. */
+  struct list_elem allelem;  /* List element for all threads list. */
+  /* Shared between thread.c and synch.c. */
+  struct list_elem elem; /* List element. */
 
-    int64_t wake_up_at;                 /* wake up at this timer tick */
+  int nice;           /* Niceness of the thread. */
+  fixed_t recent_cpu; /* Recent CPU. */
 
-    int priority;                       /* Base Priority. */
-    int effective_priority;             /* Effective priority */
-    struct thread *thread_waiting_for;   /* the thread that holds the lock this thread needs */
-    struct list locks;                  /* The list of all the locks the thread holds */
+  int64_t wake_up_at; /* wake up at this timer tick */
 
+  int priority;           /* Base Priority. */
+  int effective_priority; /* Effective priority */
+  struct thread *
+      thread_waiting_for; /* the thread that holds the lock this thread needs */
+  struct list locks;      /* The list of all the locks the thread holds */
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
@@ -142,14 +142,15 @@ void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
+int thread_get_max_donated_priority(struct list *locks); 
 
 int thread_get_nice(void);
 void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
-bool thread_compare_priority (const struct list_elem *t1, 
-      const struct list_elem *t2, void *aux UNUSED);
+bool thread_compare_priority(const struct list_elem *t1,
+                             const struct list_elem *t2, void *aux UNUSED);
 void update_load_avg(void);
 void update_recent_cpu_each_thread(struct thread *t, void *aux UNUSED);
 void update_priority(struct thread *t);

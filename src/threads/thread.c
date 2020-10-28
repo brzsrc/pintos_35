@@ -295,7 +295,7 @@ void thread_unblock(struct thread *t) {
 
   old_level = intr_disable();
   ASSERT(t->status == THREAD_BLOCKED);
-  
+
   list_insert_ordered(&ready_list, &t->elem, &thread_compare_priority, NULL);
   t->status = THREAD_READY;
   intr_set_level(old_level);
@@ -380,26 +380,13 @@ void thread_foreach(thread_action_func *func, void *aux) {
 void thread_set_priority(int new_priority) {
   thread_current()->priority = new_priority;
   struct list *locks = &thread_current()->locks;
-  struct list_elem *e;
   if (new_priority > thread_get_priority() || list_empty(locks)) {
     thread_current()->effective_priority = new_priority;
   } else {
-    int max_priority = 0;
-    for (e = list_begin(locks); e != list_end(locks); e = list_next(e)) {
-      /* the threads waiting for lock e */
-      struct list threads_waiting =
-          list_entry(e, struct lock, elem)->semaphore.waiters;
-      if (list_empty(&threads_waiting)) continue;
-      struct list_elem *elem_temp = list_begin(&threads_waiting);
-      int locked_thread_priority =
-          list_entry(elem_temp, struct thread, elem)->effective_priority;
-
-      max_priority = locked_thread_priority >= max_priority
-                         ? locked_thread_priority
-                         : max_priority;
-    }
-    thread_current()->effective_priority =
-        new_priority >= max_priority ? new_priority : max_priority;
+    int max_donated_priority = thread_get_max_donated_priority(locks);
+    thread_current()->effective_priority = new_priority >= max_donated_priority
+                                               ? new_priority
+                                               : max_donated_priority;
   }
 
   if (!list_empty(&ready_list)) {
@@ -417,6 +404,26 @@ int thread_get_priority(void) {
     return thread_current()->priority;
   }
   return thread_current()->effective_priority;
+}
+
+int thread_get_max_donated_priority(struct list *locks) {
+  struct list_elem *e;
+  // This thread may receive some other donations because it is holding on
+  // to some other locks
+  int max_priority = 0;
+  for (e = list_begin(locks); e != list_end(locks); e = list_next(e)) {
+    /* the threads waiting for lock e, who are donating */
+    struct list threads_waiting =
+        list_entry(e, struct lock, elem)->semaphore.waiters;
+    if (list_empty(&threads_waiting)) continue;
+    // Since waiters are sorted according to their priority, the first one has
+    // the highest priority
+    struct list_elem *elem_temp = list_begin(&threads_waiting);
+    int new_priority =
+        list_entry(elem_temp, struct thread, elem)->effective_priority;
+
+    max_priority = new_priority >= max_priority ? new_priority : max_priority;
+  }
 }
 
 /* Sets the current thread's nice value to NICE. */
