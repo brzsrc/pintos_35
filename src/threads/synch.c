@@ -34,9 +34,6 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
-// static int
-// get_highest_priority(struct lock *lock);
-
 static void apply_donation(struct lock *lock);
 
 static void cancel_donation(struct lock *lock);
@@ -192,7 +189,10 @@ void lock_acquire(struct lock *lock) {
   ASSERT(!lock_held_by_current_thread(lock));
 
   thread_current()->thread_waiting_for = lock->holder;
+  sema_down(&effective_priority_sema);
   apply_donation(lock);
+  sema_up(&effective_priority_sema);
+
   sema_down(&lock->semaphore);
   lock->holder = thread_current();
   thread_current()->thread_waiting_for = NULL;
@@ -244,6 +244,8 @@ void lock_release(struct lock *lock) {
   sema_up(&lock->semaphore);
 }
 
+/* Remove the lock to be released from the current thread's lock
+  lists. Recalculate the current thread's effective priority */
 static void cancel_donation(struct lock *lock) {
   struct thread *t_cur = thread_current();
   struct list *locks = &t_cur->locks;
@@ -252,11 +254,13 @@ static void cancel_donation(struct lock *lock) {
   list_remove(&lock->elem);
 
   if (!list_empty(locks)) {
+    sema_down(&effective_priority_sema);
     int max_donated_priority = thread_get_max_donated_priority(locks);
     int curr_base_priority = t_cur->priority;
     t_cur->effective_priority = curr_base_priority >= max_donated_priority
                                     ? curr_base_priority
                                     : max_donated_priority;
+    sema_up(&effective_priority_sema);
   } else {
     // The t_cur does not hold any other lock
     // Hence t_cur does not receive any donation
@@ -288,6 +292,9 @@ void cond_init(struct condition *cond) {
   list_init(&cond->waiters);
 }
 
+/* Compare priorities of the first elem in semaphone.waiters and return true if
+  first proirity is greater, false otherwise. Used in list sort in cond_signal.
+*/
 static bool cond_compare_priority(const struct list_elem *c1,
                                   const struct list_elem *c2,
                                   void *aux UNUSED) {

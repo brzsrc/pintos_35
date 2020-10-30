@@ -142,7 +142,7 @@ void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
-int thread_get_max_donated_priority(struct list *locks); 
+int thread_get_max_donated_priority(struct list *locks);
 
 int thread_get_nice(void);
 void thread_set_nice(int);
@@ -151,7 +151,7 @@ int thread_get_load_avg(void);
 
 bool thread_compare_priority(const struct list_elem *t1,
                              const struct list_elem *t2, void *aux UNUSED);
-void update_load_avg(void);
-void update_recent_cpu_each_thread(struct thread *t, void *aux UNUSED);
-void update_priority(struct thread *t);
+void thread_update_load_avg(void);
+void thread_foreach_update_recent_cpu(struct thread *t, void *aux UNUSED);
+void thread_update_priority(struct thread *t);
 #endif /* threads/thread.h */

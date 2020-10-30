@@ -40,8 +40,8 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
-/* 64 queues */
-//static struct list priority_queues[64];
+/* lock for r/w of effective priority */
+struct semaphore effective_priority_sema;
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame {
@@ -92,7 +92,7 @@ bool thread_compare_priority(const struct list_elem *t1,
 }
 
 /* Update load_avg every second. */
-void update_load_avg(void) {
+void thread_update_load_avg(void) {
   size_t ready_threads = threads_ready();
   if (thread_current() != idle_thread) ready_threads++;
   /** load_avg = (59/60)*load_avg + (1/60)*ready_threads **/
@@ -101,7 +101,7 @@ void update_load_avg(void) {
 }
 
 /* Update recent_cpu for each thread every second. */
-void update_recent_cpu_each_thread(struct thread *t, void *aux UNUSED) {
+void thread_foreach_update_recent_cpu(struct thread *t, void *aux UNUSED) {
   /** recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice **/
   fixed_t arg1 = MIX_MUL(load_avg, 2);
   fixed_t arg2 = MIX_ADD(MIX_MUL(load_avg, 2), 1);
@@ -110,7 +110,7 @@ void update_recent_cpu_each_thread(struct thread *t, void *aux UNUSED) {
 }
 
 /* Update priority every 4 ticks. */
-void update_priority(struct thread *t) {
+void thread_update_priority(struct thread *t) {
   /** priority = PRI_MAX - (recent_cpu / 4) - (nice * 2) **/
   t->priority =
       ROUND_ZERO(MIX_SUB(FLOAT_SUB(FLOAT(PRI_MAX), MIX_DIV(t->recent_cpu, 4)),
@@ -136,6 +136,7 @@ void thread_init(void) {
   lock_init(&tid_lock);
   list_init(&ready_list);
   list_init(&all_list);
+  sema_init(&effective_priority_sema, 1);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread();
@@ -185,11 +186,11 @@ void thread_tick(void) {
       thread_current()->recent_cpu = MIX_ADD(t->recent_cpu, 1);
     }
     if (timer_ticks() % TIMER_FREQ == 0) {
-      update_load_avg();
-      thread_foreach(update_recent_cpu_each_thread, NULL);
+      thread_update_load_avg();
+      thread_foreach(thread_foreach_update_recent_cpu, NULL);
     }
     if (timer_ticks() % TIME_SLICE == 0) {
-      update_priority(t);
+      thread_update_priority(t);
     }
   }
 
@@ -409,7 +410,8 @@ int thread_get_priority(void) {
   return thread_current()->effective_priority;
 }
 
-/* Access:  */
+/*  Return the max priorities in a list of locks by checking all the
+    threads' effective priority for each lock in the list */
 int thread_get_max_donated_priority(struct list *locks) {
   struct list_elem *e;
   // This thread may receive some other donations because it is holding on
