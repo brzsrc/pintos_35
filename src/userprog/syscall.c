@@ -34,12 +34,12 @@ static void syscall_handler(struct intr_frame *f) {
 }
 
 void 
-halt(void) { 
+syscall_halt(void) { 
   shutdown_power_off(); 
 }
 
 void 
-exit(int status) {
+syscall_exit(int status) {
   thread_current()->status = status;
   printf("%s: exit(%d)\n", thread_current()->name, status);
   thread_exit();
@@ -48,28 +48,28 @@ exit(int status) {
 // haven't impelemented synchronization yet
 // let pid = tid
 pid_t 
-exec(const char *cmd_line) { 
+syscall_exec(const char *cmd_line) { 
   return process_execute(cmd_line); 
 }
 
 // haven't completed yet
 int 
-wait(pid_t pid) { 
+syscall_wait(pid_t pid) { 
   return process_wait(pid); 
 }
 
 bool 
-create(const char *file, unsigned initial_size) {
+syscall_create(const char *file, unsigned initial_size) {
   return filesys_create(file, initial_size);
 }
 
 bool 
-remove(const char *file) { 
+syscall_remove(const char *file) { 
   return filesys_remove(file); 
 }
 
 int 
-open(const char *file_name) {
+syscall_open(const char *file_name) {
   struct file *file = filesys_open(file_name);
   if (!file) {
     return -1;
@@ -95,7 +95,7 @@ open(const char *file_name) {
 }
 
 int 
-filesize(int fd) {
+syscall_filesize(int fd) {
   struct opened_file *opened_file = get_opened_file(fd);
 
   if(!opened_file) {
@@ -105,7 +105,7 @@ filesize(int fd) {
 }
 
 int 
-read(int fd, void *buffer, unsigned size) {
+syscall_read(int fd, void *buffer, unsigned size) {
   if(fd == STDIN_FILENO) {
     for(unsigned int i = 0; i < size; i++) {
       *(uint8_t *)(buffer + i) = input_getc();
@@ -122,7 +122,7 @@ read(int fd, void *buffer, unsigned size) {
 }
 
 int 
-write(int fd, const void *buffer, unsigned size) {
+syscall_write(int fd, const void *buffer, unsigned size) {
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
     return size;
@@ -137,7 +137,7 @@ write(int fd, const void *buffer, unsigned size) {
 }
 
 void 
-seek(int fd, unsigned position) {
+syscall_seek(int fd, unsigned position) {
   struct opened_file *opened_file = get_opened_file(fd);
 
   if(!opened_file) {
@@ -148,7 +148,7 @@ seek(int fd, unsigned position) {
 }
 
 unsigned 
-tell(int fd) {
+syscall_tell(int fd) {
   struct opened_file *opened_file = get_opened_file(fd);
 
   if(!opened_file) {
@@ -159,7 +159,7 @@ tell(int fd) {
 }
 
 void 
-close(int fd) {
+syscall_close(int fd) {
   struct opened_file *opened_file = get_opened_file(fd);
   if (!opened_file) {
     return;
