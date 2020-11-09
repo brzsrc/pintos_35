@@ -102,6 +102,9 @@ struct thread {
       thread_waiting_for; /* the thread that holds the lock this thread needs */
   struct list locks;      /* The list of all the locks the thread holds */
 
+   /* Shared between thread.c and systemcall.c. */
+   struct list opened_files;               /* The list of all the open files the thread holds */
+
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir; /* Page directory. */

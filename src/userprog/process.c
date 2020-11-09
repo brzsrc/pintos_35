@@ -63,6 +63,9 @@ process_execute (const char *file_name)
 
 /* A thread function that loads a user process and starts it
    running. */
+
+/////////////////////////////////////////
+//在这儿init if（esp）
 static void
 start_process (void *file_name_)
 {
@@ -151,6 +154,11 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  while (true)
+  {
+    
+  }
+  
   return -1;
 }
 
