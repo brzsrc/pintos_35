@@ -18,8 +18,15 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#define WORD_LIMIT 128
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
+/* Store number of arguments*/
+int argc;
+/* Store arguments*/
+char *argv[WORD_LIMIT];
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -30,6 +37,7 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
+  char *token, *save_ptr;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -37,6 +45,14 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+
+  token = strtok_r(fn_copy, " ", &save_ptr);
+
+  while (token != NULL)
+  {
+    argv[argc++] = token;
+    token = strtok_r (NULL, " ", &save_ptr);
+  }
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
@@ -53,6 +69,7 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  int addr[argc];
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -60,6 +77,45 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+
+  if (success) 
+  {
+    /* Push arguments in reverse order */
+    for (int i = argc - 1; i >= 0; i--)
+    {
+      if_.esp -= strlen(argv[argc]); 
+      memcpy(if_.esp, argv[argc], strlen(argv[argc]));
+      addr[i] = (int)if_.esp; 
+    }
+
+    /* Word-align */
+    while ((int)if_.esp % 4 != 0) if_.esp--;
+
+    /* Push a null pointer sentinel */
+    uint8_t zero = 0;
+    if_.esp-= sizeof(uint8_t);
+    memcpy(if_.esp, &zero, sizeof(uint8_t));
+
+    /* Push pointers to arguments */
+    for (int i = argc - 1; i >= 0; i--)
+    {
+      if_.esp -= sizeof(int); 
+      memcpy(if_.esp, &addr[i], sizeof(int));
+    }
+
+    /* Push a pointer to the first pointmer */
+    int arg_start = (int)if_.esp;
+    if_.esp -= sizeof(int);
+    memcpy(if_.esp, &arg_start, sizeof(int));
+
+    /* Push the number of arguments */
+    if_.esp -= sizeof(int);
+    memcpy(if_.esp, &argc, sizeof(int));
+
+    /* Push a fake return address 0 */
+    if_.esp -= sizeof(int);
+    memcpy(if_.esp, &zero, sizeof(int));
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
