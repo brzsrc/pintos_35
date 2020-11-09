@@ -3,11 +3,6 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 
-#include "filesys/filesys.h"
-#include "lib/kernel/list.h"
-#include "lib/kernel/stdio.h"
-#include "lib/user/syscall.h"
-#include "process.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
@@ -25,14 +20,16 @@ struct opened_file {
 struct opened_file *get_opened_file(int fd);
 static void syscall_handler(struct intr_frame *);
 
-void 
-syscall_init(void) {
+static int get_syscall_number(struct intr_frame *f UNUSED) { return 0; };
+
+void syscall_init(void) {
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static void 
-syscall_handler(struct intr_frame *f UNUSED) {
+static void syscall_handler(struct intr_frame *f) {
   printf("system call!\n");
+  int sys_call_no = get_syscall_number(f);
+  
   thread_exit();
 }
 
