@@ -121,7 +121,7 @@ struct child {
    int tid;
    struct list_elem elem;
    int exit_status;
-}
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
