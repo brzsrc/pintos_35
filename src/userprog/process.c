@@ -69,7 +69,7 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-  int addr[argc];
+  char *addr[argc];
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -83,38 +83,45 @@ start_process (void *file_name_)
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--)
     {
-      if_.esp -= strlen(argv[argc]); 
+      if_.esp -= strlen(argv[argc]);
       memcpy(if_.esp, argv[argc], strlen(argv[argc]));
-      addr[i] = (int)if_.esp; 
+      addr[i] = if_.esp; 
     }
 
     /* Word-align */
-    while ((int)if_.esp % 4 != 0) if_.esp--;
+    uint8_t zero = 0;
+    int word_align_count = 0;
+    while ((int)if_.esp % 4 != 0)
+    {
+      if_.esp--;
+      word_align_count++;
+    }
+    if (word_align_count != 0) 
+      memcpy(if_.esp, &zero, word_align_count);
 
     /* Push a null pointer sentinel */
-    uint8_t zero = 0;
-    if_.esp-= sizeof(uint8_t);
-    memcpy(if_.esp, &zero, sizeof(uint8_t));
+    if_.esp-= sizeof(char *);
+    memcpy(if_.esp, &zero, sizeof(char *));
 
     /* Push pointers to arguments */
     for (int i = argc - 1; i >= 0; i--)
     {
-      if_.esp -= sizeof(int); 
-      memcpy(if_.esp, &addr[i], sizeof(int));
+      if_.esp -= sizeof(char *); 
+      memcpy(if_.esp, addr[i], sizeof(char *));
     }
 
     /* Push a pointer to the first pointmer */
     int arg_start = (int)if_.esp;
-    if_.esp -= sizeof(int);
-    memcpy(if_.esp, &arg_start, sizeof(int));
+    if_.esp -= sizeof(char **);
+    memcpy(if_.esp, &arg_start, sizeof(char **));
 
     /* Push the number of arguments */
     if_.esp -= sizeof(int);
     memcpy(if_.esp, &argc, sizeof(int));
 
     /* Push a fake return address 0 */
-    if_.esp -= sizeof(int);
-    memcpy(if_.esp, &zero, sizeof(int));
+    if_.esp -= sizeof(void (*));
+    memcpy(if_.esp, &zero, sizeof(void (*)));
   }
 
   /* If load failed, quit. */
