@@ -93,14 +93,15 @@ struct thread
     int nice;           /* Niceness of the thread. */
     fixed_t recent_cpu; /* Recent CPU. */
 
-
-    
     int64_t wake_up_at;                 /* wake up at this timer tick */
     struct thread *thread_waiting_for;   /* the thread that holds the lock this thread needs */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     struct list locks;                  /* The list of all the locks the thread holds */
+
+   /* Shared between thread.c and systemcall.c. */
+   struct list opened_files;               /* The list of all the open files the thread holds */
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
