@@ -26,6 +26,12 @@ void syscall_init(void) {
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+static void check_valid_pointer(void *pointer) {
+  if (!is_user_vaddr(pointer) || 
+          ((pagedir_get_page(thread_current()->pagedir), pointer) == NULL))
+    syscall_exit(-1);
+}
+
 static void syscall_handler(struct intr_frame *f) {
   printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
