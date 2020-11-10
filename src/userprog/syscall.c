@@ -3,13 +3,19 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 
-#include "threads/interrupt.h"
-#include "threads/palloc.h"
-#include "threads/thread.h"
-#include "filesys/file.h"
-#include "lib/stdio.h"
 #include "devices/input.h"
 #include "devices/shutdown.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
+#include "lib/stdio.h"
+#include "pagedir.h"
+#include "threads/interrupt.h"
+#include "threads/malloc.h"
+#include "threads/palloc.h"
+#include "threads/synch.h"
+#include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "userprog/process.h"
 
 struct opened_file {
   struct file *file;
@@ -17,35 +23,88 @@ struct opened_file {
   struct list_elem elem;
 };
 
-struct opened_file *get_opened_file(int fd);
+struct lock filesys_lock;
+
+static void check_valid_pointer(void *pointer);
+static int get_syscall_number(struct intr_frame *f);
+static struct opened_file *get_opened_file(int fd);
+
 static void syscall_handler(struct intr_frame *);
 
-static int get_syscall_number(struct intr_frame *f UNUSED) { return 0; };
-
-void syscall_init(void) {
-  intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+static void check_valid_pointer(void *pointer) {
+  if (!is_user_vaddr(pointer) ||
+      pagedir_get_page(thread_current()->pagedir, pointer) == NULL)
+    syscall_exit(-1);
 }
 
-static void check_valid_pointer(void *pointer) {
-  if (!is_user_vaddr(pointer) || 
-          ((pagedir_get_page(thread_current()->pagedir), pointer) == NULL))
-    syscall_exit(-1);
+static int get_syscall_number(struct intr_frame *f) {
+  void *stack_ptr = f->esp;
+  check_valid_pointer(stack_ptr);
+  int sys_call_no = *(int *)stack_ptr;
+  return sys_call_no;
+}
+
+static struct opened_file *get_opened_file(int fd) {
+  struct list *opened_files = &thread_current()->opened_files;
+  struct list_elem *e;
+  if (list_empty(opened_files)) {
+    return NULL;
+  }
+
+  for (e = list_begin(opened_files); e != list_end(opened_files);
+       e = list_next(e)) {
+    struct opened_file *opened_file = list_entry(e, struct opened_file, elem);
+    if (opened_file->fd == fd) {
+      return opened_file;
+    }
+  }
+  return NULL;
+}
+
+void syscall_init(void) {
+  lock_init(&filesys_lock);
+  intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void syscall_handler(struct intr_frame *f) {
   printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
-  
+  void *arg1 = f->esp + 1;  // Does this move to (esp + 4 bytes)?
+  // void *arg2 = f->esp + 2;
+  // void *arg3 = f->esp + 3;
+  switch (sys_call_no) {
+    case SYS_HALT:
+      syscall_halt();
+      break;
+    case SYS_EXIT:
+      check_valid_pointer(arg1);
+      syscall_exit(*(int *)arg1);
+      break;
+    case SYS_EXEC:
+      /* code */
+      break;
+    case SYS_WAIT:
+      /* code */
+      break;
+    case SYS_CREATE:
+      /* code */
+      break;
+    case SYS_REMOVE:
+      /* code */
+      break;
+    case SYS_OPEN:
+      /* code */
+      break;
+
+    default:
+      break;
+  }
   thread_exit();
 }
 
-void 
-syscall_halt(void) { 
-  shutdown_power_off(); 
-}
+void syscall_halt(void) { shutdown_power_off(); }
 
-void 
-syscall_exit(int status) {
+void syscall_exit(int status) {
   thread_current()->status = status;
   printf("%s: exit(%d)\n", thread_current()->name, status);
   thread_exit();
@@ -53,29 +112,18 @@ syscall_exit(int status) {
 
 // haven't impelemented synchronization yet
 // let pid = tid
-pid_t 
-syscall_exec(const char *cmd_line) { 
-  return process_execute(cmd_line); 
-}
+pid_t syscall_exec(const char *cmd_line) { return process_execute(cmd_line); }
 
 // haven't completed yet
-int 
-syscall_wait(pid_t pid) { 
-  return process_wait(pid); 
-}
+int syscall_wait(pid_t pid) { return process_wait(pid); }
 
-bool 
-syscall_create(const char *file, unsigned initial_size) {
+bool syscall_create(const char *file, unsigned initial_size) {
   return filesys_create(file, initial_size);
 }
 
-bool 
-syscall_remove(const char *file) { 
-  return filesys_remove(file); 
-}
+bool syscall_remove(const char *file) { return filesys_remove(file); }
 
-int 
-syscall_open(const char *file_name) {
+int syscall_open(const char *file_name) {
   struct file *file = filesys_open(file_name);
   if (!file) {
     return -1;
@@ -100,72 +148,66 @@ syscall_open(const char *file_name) {
   return opened_file->fd;
 }
 
-int 
-syscall_filesize(int fd) {
+int syscall_filesize(int fd) {
   struct opened_file *opened_file = get_opened_file(fd);
 
-  if(!opened_file) {
+  if (!opened_file) {
     return -1;
   }
   return file_length(opened_file->file);
 }
 
-int 
-syscall_read(int fd, void *buffer, unsigned size) {
-  if(fd == STDIN_FILENO) {
-    for(unsigned int i = 0; i < size; i++) {
+int syscall_read(int fd, void *buffer, unsigned size) {
+  if (fd == STDIN_FILENO) {
+    for (unsigned int i = 0; i < size; i++) {
       *(uint8_t *)(buffer + i) = input_getc();
     }
     return (int)size;
   }
 
   struct opened_file *opened_file = get_opened_file(fd);
-  if(!opened_file) {
+  if (!opened_file) {
     return -1;
   }
 
   return file_read(opened_file->file, buffer, size);
 }
 
-int 
-syscall_write(int fd, const void *buffer, unsigned size) {
+int syscall_write(int fd, const void *buffer, unsigned size) {
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
     return size;
   }
 
   struct opened_file *opened_file = get_opened_file(fd);
-  if(!opened_file) {
+  if (!opened_file) {
     return -1;
   }
 
   return file_write(opened_file->file, buffer, size);
 }
 
-void 
-syscall_seek(int fd, unsigned position) {
+void syscall_seek(int fd, unsigned position) {
   struct opened_file *opened_file = get_opened_file(fd);
 
-  if(!opened_file) {
+  if (!opened_file) {
     return;
   }
 
   file_seek(opened_file->file, position);
 }
 
-unsigned 
-syscall_tell(int fd) {
+unsigned syscall_tell(int fd) {
   struct opened_file *opened_file = get_opened_file(fd);
 
-  if(!opened_file) {
+  if (!opened_file) {
     return -1;
   }
 
   return file_tell(opened_file->file);
 }
 
-void 
-syscall_close(int fd) {
+void syscall_close(int fd) {
   struct opened_file *opened_file = get_opened_file(fd);
   if (!opened_file) {
     return;
@@ -174,21 +216,4 @@ syscall_close(int fd) {
   file_close(opened_file->file);
   list_remove(&opened_file->elem);
   palloc_free_page(opened_file);
-}
-
-struct opened_file*
-get_opened_file(int fd) {
-  struct list *opened_files = &thread_current()->opened_files;
-  struct list_elem *e;
-  if(list_empty(opened_files)) {
-    return NULL;
-  }
-
-  for (e = list_begin(opened_files); e != list_end(opened_files); e = list_next(e)) {
-    struct opened_file *opened_file = list_entry(e, struct opened_file, elem);
-    if (opened_file->fd == fd) {
-      return opened_file;
-    }
-  }
-  return NULL;
 }
