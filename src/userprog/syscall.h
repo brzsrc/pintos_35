@@ -7,8 +7,12 @@
 
 void syscall_init(void);
 
-void syscall_halt(void);
-void syscall_exit(int status);
+// Do not add them into header file because no one else is
+// going to use them
+// void syscall_halt(void);
+// void syscall_exit(int status);
+
+// These are not yet commented out to suppress warnings
 pid_t syscall_exec(const char *cmd_line);
 int syscall_wait(pid_t pid);
 bool syscall_create(const char *file, unsigned initial_size);
