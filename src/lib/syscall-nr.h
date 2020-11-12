@@ -1,6 +1,8 @@
 #ifndef __LIB_SYSCALL_NR_H
 #define __LIB_SYSCALL_NR_H
 
+#define MAX_SYSCALL_NO (19)  //The maximum of enum
+
 /* System call numbers. */
 enum 
   {

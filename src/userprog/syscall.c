@@ -36,7 +36,7 @@ static void syscall_handler(struct intr_frame *);
 static void syscall_halt(void *, void *, void *);
 static void syscall_exit(void *, void *, void *);
 
-static syscall_func syscall_functions[] = {syscall_halt, syscall_exit};
+static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 
 static void check_valid_pointer(void *pointer) {
   struct thread *t = thread_current();
@@ -49,12 +49,12 @@ static void check_valid_pointer(void *pointer) {
 }
 
 static int get_syscall_number(struct intr_frame *f) {
-  //DEBUG
+  // DEBUG
   printf("getting syscall no\n");
   void *stack_ptr = f->esp;
   check_valid_pointer(stack_ptr);
   int sys_call_no = *(int *)stack_ptr;
-  //DEBUG
+  // DEBUG
   printf("syscall no is %d\n", sys_call_no);
   return sys_call_no;
 }
@@ -79,16 +79,21 @@ static struct opened_file *get_opened_file(int fd) {
 void syscall_init(void) {
   lock_init(&filesys_lock);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+
+  // Initialize the functions such that handlers can be
+  // retrived by indexing into the array using the handler name
+  syscall_functions[SYS_HALT] = syscall_halt;
+  syscall_functions[SYS_EXIT] = syscall_exit;
 }
 
 static void syscall_handler(struct intr_frame *f) {
-  //DEBUG
+  // DEBUG
   printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
   void *arg1 = f->esp + 1;  // Does this move to (esp + 4 bytes)?
   void *arg2 = f->esp + 2;
   void *arg3 = f->esp + 3;
-  //DEBUG
+  // DEBUG
   printf("Dispatching a function!\n");
   syscall_func function = syscall_functions[sys_call_no];
   function(arg1, arg2, arg3);
