@@ -138,12 +138,23 @@ static void start_process(void *file_name_) {
  *
  * This function will be implemented in task 2.
  * For now, it does nothing. */
-int process_wait(tid_t child_tid UNUSED) {
-  for(;;){
-    
+int process_wait(tid_t child_tid) {
+  struct child *c;
+  struct list_elem *e;
+
+  for (struct list_elem *child_e = list_begin(&thread_current()->child_process);
+       child_e != list_end(&thread_current()->child_process);
+       child_e = list_next(child_e)) {
+    struct child *child_c = list_entry(child_e, struct child, elem);
+    if (child_c->tid == child_tid) {
+      c = child_c;
+      e = child_e;
+    }
   }
 
-  return -1;
+  if (!c || !e) return -1;
+
+  return c->exit_status;
 }
 
 /* Free the current process's resources. */
