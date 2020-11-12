@@ -80,7 +80,7 @@ void syscall_init(void) {
   lock_init(&filesys_lock);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 
-  // Initialize the functions such that handlers can be
+  // Initialize the array such that handlers can be
   // retrived by indexing into the array using the handler name
   syscall_functions[SYS_HALT] = syscall_halt;
   syscall_functions[SYS_EXIT] = syscall_exit;
