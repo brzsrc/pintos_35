@@ -49,9 +49,13 @@ static void check_valid_pointer(void *pointer) {
 }
 
 static int get_syscall_number(struct intr_frame *f) {
+  //DEBUG
+  printf("getting syscall no\n");
   void *stack_ptr = f->esp;
   check_valid_pointer(stack_ptr);
   int sys_call_no = *(int *)stack_ptr;
+  //DEBUG
+  printf("syscall no is %d\n", sys_call_no);
   return sys_call_no;
 }
 
@@ -78,11 +82,14 @@ void syscall_init(void) {
 }
 
 static void syscall_handler(struct intr_frame *f) {
+  //DEBUG
   printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
   void *arg1 = f->esp + 1;  // Does this move to (esp + 4 bytes)?
   void *arg2 = f->esp + 2;
   void *arg3 = f->esp + 3;
+  //DEBUG
+  printf("Dispatching a function!\n");
   syscall_func function = syscall_functions[sys_call_no];
   function(arg1, arg2, arg3);
   thread_exit();

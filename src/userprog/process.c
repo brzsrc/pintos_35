@@ -76,8 +76,9 @@ static void start_process(void *file_name_) {
   if (success) {
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--) {
-      if_.esp -= strlen(argv[argc]);
-      memcpy(if_.esp, argv[argc], strlen(argv[argc]));
+      //TODO temporarily skip parsing args
+      //if_.esp -= strlen(argv[argc]);
+      //memcpy(if_.esp, argv[argc], strlen(argv[argc]));
       addr[i] = if_.esp;
     }
 
