@@ -109,8 +109,11 @@ struct thread {
       thread_waiting_for; /* the thread that holds the lock this thread needs */
   struct list locks;      /* The list of all the locks the thread holds */
 
-   /* Shared between thread.c and systemcall.c. */
-   struct list opened_files;               /* The list of all the open files the thread holds */
+  /* Shared between thread.c and systemcall.c. */
+  struct list
+      opened_files; /* The list of all the open files the thread holds */
+
+  struct list child_process; /* The list of child processes the thread holds */
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
@@ -119,6 +122,12 @@ struct thread {
 
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */
+};
+
+struct child {
+   int tid;
+   struct list_elem elem;
+   int exit_status;
 };
 
 /* If false (default), use round-robin scheduler.

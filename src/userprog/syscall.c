@@ -23,6 +23,9 @@ struct opened_file {
   struct list_elem elem;
 };
 
+// Function pointers to syscall functions
+typedef void (*syscall_func)(void *arg1, void *arg2, void *arg3);
+
 struct lock filesys_lock;
 
 static void check_valid_pointer(void *pointer);
@@ -30,17 +33,29 @@ static int get_syscall_number(struct intr_frame *f);
 static struct opened_file *get_opened_file(int fd);
 
 static void syscall_handler(struct intr_frame *);
+static void syscall_halt(void *, void *, void *);
+static void syscall_exit(void *, void *, void *);
+
+static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 
 static void check_valid_pointer(void *pointer) {
+  struct thread *t = thread_current();
   if (!is_user_vaddr(pointer) ||
-      pagedir_get_page(thread_current()->pagedir, pointer) == NULL)
-    syscall_exit(-1);
+      pagedir_get_page(t->pagedir, pointer) == NULL) {
+    t->status = -1;
+    printf("%s: exit(%d)\n", t->name, t->status);
+    thread_exit();
+  }
 }
 
 static int get_syscall_number(struct intr_frame *f) {
+  // DEBUG
+  printf("getting syscall no\n");
   void *stack_ptr = f->esp;
   check_valid_pointer(stack_ptr);
   int sys_call_no = *(int *)stack_ptr;
+  // DEBUG
+  printf("syscall no is %d\n", sys_call_no);
   return sys_call_no;
 }
 
@@ -64,47 +79,35 @@ static struct opened_file *get_opened_file(int fd) {
 void syscall_init(void) {
   lock_init(&filesys_lock);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+
+  // Initialize the array such that handlers can be
+  // retrived by indexing into the array using the handler name
+  syscall_functions[SYS_HALT] = syscall_halt;
+  syscall_functions[SYS_EXIT] = syscall_exit;
 }
 
 static void syscall_handler(struct intr_frame *f) {
+  // DEBUG
   printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
   void *arg1 = f->esp + 1;  // Does this move to (esp + 4 bytes)?
-  // void *arg2 = f->esp + 2;
-  // void *arg3 = f->esp + 3;
-  switch (sys_call_no) {
-    case SYS_HALT:
-      syscall_halt();
-      break;
-    case SYS_EXIT:
-      check_valid_pointer(arg1);
-      syscall_exit(*(int *)arg1);
-      break;
-    case SYS_EXEC:
-      /* code */
-      break;
-    case SYS_WAIT:
-      /* code */
-      break;
-    case SYS_CREATE:
-      /* code */
-      break;
-    case SYS_REMOVE:
-      /* code */
-      break;
-    case SYS_OPEN:
-      /* code */
-      break;
-
-    default:
-      break;
-  }
+  void *arg2 = f->esp + 2;
+  void *arg3 = f->esp + 3;
+  // DEBUG
+  printf("Dispatching a function!\n");
+  syscall_func function = syscall_functions[sys_call_no];
+  function(arg1, arg2, arg3);
   thread_exit();
 }
 
-void syscall_halt(void) { shutdown_power_off(); }
+static void syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
+                         void *arg3 UNUSED) {
+  shutdown_power_off();
+}
 
-void syscall_exit(int status) {
+static void syscall_exit(void *arg1, void *arg2 UNUSED, void *arg3 UNUSED) {
+  check_valid_pointer(arg1);
+  int status = *(int *)arg1;
   thread_current()->status = status;
   printf("%s: exit(%d)\n", thread_current()->name, status);
   thread_exit();

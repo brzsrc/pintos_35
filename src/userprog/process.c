@@ -20,7 +20,7 @@
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
 
-#define WORD_LIMIT 128
+#define WORD_LIMIT (128)
 
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
@@ -41,14 +41,21 @@ tid_t process_execute(const char *file_name) {
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page(0);
+
+  // This 0 is suspicious. It should be one of the palloc flags?
+  // Further experiments show that this is not an error
+  fn_copy = palloc_get_page(PAL_ZERO);
+
   if (fn_copy == NULL) return TID_ERROR;
   strlcpy(fn_copy, file_name, PGSIZE);
 
   token = strtok_r(fn_copy, " ", &save_ptr);
 
   while (token != NULL) {
-    argv[argc++] = token;
+    argv[argc] = token;
+    // DEBUG
+    // printf("%s\n ", argv[argc]);
+    argc++;
     token = strtok_r(NULL, " ", &save_ptr);
   }
 
@@ -64,7 +71,8 @@ static void start_process(void *file_name_) {
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-  char *addr[argc];
+  // char *addr[argc];
+  char *addr[10];
 
   /* Initialize interrupt frame and load executable. */
   memset(&if_, 0, sizeof if_);
@@ -72,12 +80,14 @@ static void start_process(void *file_name_) {
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
+  // DEBUG
+  //printf("%s\n", argv[argc - 1]);
 
   if (success) {
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--) {
-      if_.esp -= strlen(argv[argc]);
-      memcpy(if_.esp, argv[argc], strlen(argv[argc]));
+      if_.esp -= strlen(argv[i]);
+      memcpy(if_.esp, argv[i], strlen(argv[i]));
       addr[i] = if_.esp;
     }
 
@@ -137,11 +147,26 @@ static void start_process(void *file_name_) {
  *
  * This function will be implemented in task 2.
  * For now, it does nothing. */
-int process_wait(tid_t child_tid UNUSED) {
-  while (true) {
+int process_wait(tid_t child_tid) {
+  for (;;) {
   }
 
-  return -1;
+  struct child *c;
+  struct list_elem *e;
+
+  for (struct list_elem *child_e = list_begin(&thread_current()->child_process);
+       child_e != list_end(&thread_current()->child_process);
+       child_e = list_next(child_e)) {
+    struct child *child_c = list_entry(child_e, struct child, elem);
+    if (child_c->tid == child_tid) {
+      c = child_c;
+      e = child_e;
+    }
+  }
+
+  if (!c || !e) return -1;
+
+  return c->exit_status;
 }
 
 /* Free the current process's resources. */
