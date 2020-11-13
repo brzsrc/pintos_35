@@ -81,7 +81,7 @@ static void start_process(void *file_name_) {
 
   if (success) {
     /* I don't know why */
-    if_.esp -= sizeof(int);
+    //if_.esp -= sizeof(int);
 
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--) {
@@ -120,7 +120,7 @@ static void start_process(void *file_name_) {
     memcpy(if_.esp, &zero, sizeof(void(*)));
   }
 
-  //hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
+  hex_dump(0, if_.esp, PHYS_BASE - if_.esp, true);
   /* If load failed, quit. */
   palloc_free_page(file_name);
   if (!success) thread_exit();
