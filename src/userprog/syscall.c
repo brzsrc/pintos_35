@@ -65,21 +65,17 @@ static void check_valid_pointer(void *pointer) {
   struct thread *t = thread_current();
   if (!is_user_vaddr(pointer) ||
       pagedir_get_page(t->pagedir, pointer) == NULL) {
-    t->status = -1;
-    printf("%s: exit(%d)\n", t->name, t->status);
-    thread_exit();
+    // TODO Design the pointer validation logic
+    printf("Invalid pointer access!\n");
+    NOT_REACHED();  // Panic the os to indicate error. Should be replaced by
+                    // some handling logic
   }
 }
 
 static int get_syscall_number(struct intr_frame *f) {
-  // DEBUG
-  // printf("getting syscall no\n");
   void *stack_ptr = f->esp;
   check_valid_pointer(stack_ptr);
   int sys_call_no = *(int *)stack_ptr;
-
-  // DEBUG
-  // printf("syscall no is %d\n", sys_call_no);
   return sys_call_no;
 }
 
@@ -101,27 +97,17 @@ static struct opened_file *get_opened_file(int fd) {
 }
 
 static void syscall_handler(struct intr_frame *f) {
-  // DEBUG
-  // printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
-  // DEBUG
-  // sys_call_no = SYS_FILESIZE;
-  // printf("testing syscall no %d\n", sys_call_no);
 
   void *arg1 = f->esp + 4;
   void *arg2 = f->esp + 8;
   void *arg3 = f->esp + 12;
-  // DEBUG
-  // printf("Dispatching a function!\n");
-  // syscall_create(arg1, arg2, arg3);
-  //(arg1, arg2, arg3);
 
   syscall_func function = syscall_functions[sys_call_no];
 
   unsigned int result = function(arg1, arg2, arg3);
   // printf("result of sys call: %x\n", result);
   f->eax = result;
-  // thread_exit();
 }
 
 // Tested OK
@@ -157,8 +143,8 @@ int syscall_wait(pid_t pid) { return process_wait(pid); }
 
 // Tested OK
 static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
-  const char *file = "xxx";        // TODO arg1
-  unsigned int initial_size = 10;  // TODO arg2
+  const char *file = *(char **)arg1;
+  unsigned int initial_size = *(unsigned int *)arg2;
   lock_acquire(&filesys_lock);
   bool result = filesys_create(file, initial_size);
   lock_release(&filesys_lock);
@@ -168,7 +154,7 @@ static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
 // Tested OK
 static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
                                    void *arg3 UNUSED) {
-  const char *file = "xxx";  // TODO arg1
+  const char *file = *(char **)arg1;
   lock_acquire(&filesys_lock);
   bool result = filesys_remove(file);
   lock_release(&filesys_lock);
@@ -178,7 +164,7 @@ static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
 // Tested OK
 static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
-  const char *file_name = "xxx";  // TODO arg1
+  const char *file_name = *(char **)arg1;
   lock_acquire(&filesys_lock);
   struct file *file = filesys_open(file_name);
   if (!file) {
@@ -211,7 +197,7 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
 // Tested OK
 static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
                                      void *arg3 UNUSED) {
-  int fd = 2;  // TODO arg1
+  int fd = *(int *)arg1;
 
   struct opened_file *opened_file = get_opened_file(fd);
 
@@ -226,9 +212,9 @@ static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
 }
 
 static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
-  int fd = 1;  // TODO arg1
-  void *buffer = arg2;
-  unsigned int size = 10;  // TODO arg3
+  int fd = *(int *)arg1;
+  void *buffer = *(char **)arg2;
+  unsigned int size = *(unsigned int *)arg3;
 
   if (fd == STDIN_FILENO) {
     for (unsigned int i = 0; i < size; i++) {
@@ -254,7 +240,6 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
   int fd = *(int *)arg1;
   const void *buffer = *(char **)arg2;
   unsigned size = *(unsigned *)arg3;
-  printf("size is %d\n", size);
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
     return size;

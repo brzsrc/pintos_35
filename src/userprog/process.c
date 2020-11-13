@@ -79,33 +79,22 @@ static void start_process(void *file_name_) {
   success = load(file_name, &if_.eip, &if_.esp);
 
   if (success) {
-    /* I don't know why */
-    // if_.esp -= sizeof(int);
-
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--) {
       if_.esp -= strlen(argv[i]) + 1;
       memcpy(if_.esp, argv[i], strlen(argv[i]) + 1);
       addr[i] = (int)if_.esp;
     }
-
-    hex_dump(0, if_.esp, PHYS_BASE - if_.esp, true);
-    printf("\nesp %p\n", if_.esp);
+    
     /* Word-align */
     uint32_t zero = 0x0000;
     while ((int)if_.esp % 4 != 0) {
       if_.esp--;
     }
 
-    hex_dump(0, if_.esp, PHYS_BASE - if_.esp, true);
-    printf("\n, esp %p\n", if_.esp);
-
     /* Push a null pointer sentinel */
     if_.esp -= sizeof(char *);
     memcpy(if_.esp, &zero, sizeof(char *));
-
-    hex_dump(0, if_.esp, PHYS_BASE - if_.esp, true);
-    printf("\n, esp %p\n", if_.esp);
 
     /* Push pointers to arguments */
     for (int i = argc - 1; i >= 0; i--) {
@@ -127,7 +116,6 @@ static void start_process(void *file_name_) {
     memcpy(if_.esp, &zero, sizeof(void(*)));
   }
 
-  hex_dump(0, if_.esp, PHYS_BASE - if_.esp, true);
   /* If load failed, quit. */
   palloc_free_page(file_name);
   if (!success) thread_exit();
