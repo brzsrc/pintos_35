@@ -78,11 +78,11 @@ static void start_process(void *file_name_) {
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
-  // DEBUG
-  //printf("%s\n", argv[argc - 1]);
 
   if (success) {
+    /* I don't know why */
     if_.esp -= sizeof(int);
+
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--) {
       if_.esp -= strlen(argv[i]) + 1;
@@ -92,12 +92,9 @@ static void start_process(void *file_name_) {
 
     /* Word-align */
     uint8_t zero = 0;
-    int word_align_count = 0;
     while ((int)if_.esp % 4 != 0) {
       if_.esp--;
-      word_align_count++;
     }
-    if (word_align_count != 0) memcpy(if_.esp, &zero, word_align_count);
 
     /* Push a null pointer sentinel */
     if_.esp -= sizeof(char *);
