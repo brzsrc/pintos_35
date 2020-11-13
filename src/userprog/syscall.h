@@ -15,7 +15,6 @@ void syscall_init(void);
 // These are not yet commented out to suppress warnings
 pid_t syscall_exec(const char *cmd_line);
 int syscall_wait(pid_t pid);
-int syscall_write(int fd, const void *buffer, unsigned size);
 void syscall_seek(int fd, unsigned position);
 unsigned syscall_tell(int fd);
 void syscall_close(int fd);

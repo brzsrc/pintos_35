@@ -41,6 +41,7 @@ static unsigned int syscall_remove(void *, void *, void *);
 static unsigned int syscall_open(void *, void *, void *);
 static unsigned int syscall_filesize(void *, void *, void *);
 static unsigned int syscall_read(void *, void *, void *);
+static unsigned int syscall_write(void *, void *, void *);
 
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 
@@ -57,6 +58,7 @@ void syscall_init(void) {
   syscall_functions[SYS_OPEN] = syscall_open;
   syscall_functions[SYS_FILESIZE] = syscall_filesize;
   syscall_functions[SYS_READ] = syscall_read;
+  syscall_functions[SYS_WRITE] = syscall_write;
 }
 
 static void check_valid_pointer(void *pointer) {
@@ -103,22 +105,23 @@ static void syscall_handler(struct intr_frame *f) {
   printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
   // DEBUG
-  sys_call_no = SYS_FILESIZE;
-  printf("testing syscall no %d\n", sys_call_no);
+  // sys_call_no = SYS_FILESIZE;
+  // printf("testing syscall no %d\n", sys_call_no);
 
-  void *arg1 = NULL;  // f->esp + 4;
-  void *arg2 = NULL;  // f->esp + 8;
-  void *arg3 = NULL;  // f->esp + 12;
+  void *arg1 = f->esp + 4;
+  void *arg2 = f->esp + 8;
+  void *arg3 = f->esp + 12;
   // DEBUG
   printf("Dispatching a function!\n");
-  syscall_create(arg1, arg2, arg3);
-  syscall_open(arg1, arg2, arg3);
+  // syscall_create(arg1, arg2, arg3);
+  //(arg1, arg2, arg3);
 
   syscall_func function = syscall_functions[sys_call_no];
 
   unsigned int result = function(arg1, arg2, arg3);
   printf("result of sys call: %x\n", result);
-  thread_exit();
+  f->eax = result;
+  // thread_exit();
 }
 
 // Tested OK
@@ -152,7 +155,7 @@ pid_t syscall_exec(const char *cmd_line) { return process_execute(cmd_line); }
 // haven't completed yet
 int syscall_wait(pid_t pid) { return process_wait(pid); }
 
-//Tested OK
+// Tested OK
 static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
   const char *file = "xxx";        // TODO arg1
   unsigned int initial_size = 10;  // TODO arg2
@@ -162,7 +165,7 @@ static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
   return result;  // bool
 }
 
-//Tested OK
+// Tested OK
 static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
                                    void *arg3 UNUSED) {
   const char *file = "xxx";  // TODO arg1
@@ -172,7 +175,7 @@ static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
   return result;  // bool
 }
 
-//Tested OK
+// Tested OK
 static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   const char *file_name = "xxx";  // TODO arg1
@@ -205,7 +208,7 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   return opened_file->fd;  // int
 }
 
-//Tested OK
+// Tested OK
 static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
                                      void *arg3 UNUSED) {
   int fd = 2;  // TODO arg1
@@ -221,7 +224,6 @@ static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
 
   return result;  // int
 }
-
 
 static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
   int fd = 1;  // TODO arg1
@@ -248,7 +250,10 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
   return result;  // int
 }
 
-int syscall_write(int fd, const void *buffer, unsigned size) {
+static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
+  int fd = 1;
+  const void *buffer = arg2;
+  unsigned size = *(unsigned *)arg3;
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
     return size;

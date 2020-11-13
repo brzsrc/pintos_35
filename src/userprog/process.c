@@ -53,8 +53,6 @@ tid_t process_execute(const char *file_name) {
 
   while (token != NULL) {
     argv[argc] = token;
-    // DEBUG
-    // printf("%s\n ", argv[argc]);
     argc++;
     token = strtok_r(NULL, " ", &save_ptr);
   }
@@ -72,7 +70,7 @@ static void start_process(void *file_name_) {
   struct intr_frame if_;
   bool success;
   // char *addr[argc];
-  char *addr[10];
+  int addr[argc];
 
   /* Initialize interrupt frame and load executable. */
   memset(&if_, 0, sizeof if_);
@@ -80,25 +78,23 @@ static void start_process(void *file_name_) {
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
-  // DEBUG
-  // printf("%s\n", argv[argc - 1]);
 
   if (success) {
+    /* I don't know why */
+    if_.esp -= sizeof(int);
+
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--) {
-      if_.esp -= strlen(argv[i]);
-      memcpy(if_.esp, argv[i], strlen(argv[i]));
-      addr[i] = if_.esp;
+      if_.esp -= strlen(argv[i]) + 1;
+      memcpy(if_.esp, argv[i], strlen(argv[i]) + 1);
+      addr[i] = (int)if_.esp;
     }
 
     /* Word-align */
     uint8_t zero = 0;
-    int word_align_count = 0;
     while ((int)if_.esp % 4 != 0) {
       if_.esp--;
-      word_align_count++;
     }
-    if (word_align_count != 0) memcpy(if_.esp, &zero, word_align_count);
 
     /* Push a null pointer sentinel */
     if_.esp -= sizeof(char *);
@@ -107,7 +103,7 @@ static void start_process(void *file_name_) {
     /* Push pointers to arguments */
     for (int i = argc - 1; i >= 0; i--) {
       if_.esp -= sizeof(char *);
-      memcpy(if_.esp, addr[i], sizeof(char *));
+      memcpy(if_.esp, &addr[i], sizeof(char *));
     }
 
     /* Push a pointer to the first pointmer */
@@ -124,6 +120,7 @@ static void start_process(void *file_name_) {
     memcpy(if_.esp, &zero, sizeof(void(*)));
   }
 
+  //hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
   /* If load failed, quit. */
   palloc_free_page(file_name);
   if (!success) thread_exit();
