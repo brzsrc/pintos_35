@@ -73,13 +73,13 @@ static void check_valid_pointer(void *pointer) {
 
 static int get_syscall_number(struct intr_frame *f) {
   // DEBUG
-  //printf("getting syscall no\n");
+  // printf("getting syscall no\n");
   void *stack_ptr = f->esp;
   check_valid_pointer(stack_ptr);
   int sys_call_no = *(int *)stack_ptr;
 
   // DEBUG
-  //printf("syscall no is %d\n", sys_call_no);
+  // printf("syscall no is %d\n", sys_call_no);
   return sys_call_no;
 }
 
@@ -102,7 +102,7 @@ static struct opened_file *get_opened_file(int fd) {
 
 static void syscall_handler(struct intr_frame *f) {
   // DEBUG
-  //printf("system call!\n");
+  // printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
   // DEBUG
   // sys_call_no = SYS_FILESIZE;
@@ -112,14 +112,14 @@ static void syscall_handler(struct intr_frame *f) {
   void *arg2 = f->esp + 8;
   void *arg3 = f->esp + 12;
   // DEBUG
-  //printf("Dispatching a function!\n");
+  // printf("Dispatching a function!\n");
   // syscall_create(arg1, arg2, arg3);
   //(arg1, arg2, arg3);
 
   syscall_func function = syscall_functions[sys_call_no];
 
   unsigned int result = function(arg1, arg2, arg3);
-  //printf("result of sys call: %x\n", result);
+  // printf("result of sys call: %x\n", result);
   f->eax = result;
   // thread_exit();
 }
@@ -251,10 +251,10 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
 }
 
 static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
-  int fd = *(int *) arg1;//dereference ok
-  const char *hi = "hello";
-  const void *buffer = (char *)arg2;
-  unsigned size = 6;// *(unsigned *)arg3;
+  int fd = *(int *)arg1;
+  const void *buffer = *(char **)arg2;
+  unsigned size = *(unsigned *)arg3;
+  printf("size is %d\n", size);
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
     return size;
