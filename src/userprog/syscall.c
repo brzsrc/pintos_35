@@ -24,7 +24,7 @@ struct opened_file {
 };
 
 // Function pointers to syscall functions
-typedef void (*syscall_func)(void *arg1, void *arg2, void *arg3);
+typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
 
 struct lock filesys_lock;
 
@@ -33,10 +33,31 @@ static int get_syscall_number(struct intr_frame *f);
 static struct opened_file *get_opened_file(int fd);
 
 static void syscall_handler(struct intr_frame *);
-static void syscall_halt(void *, void *, void *);
-static void syscall_exit(void *, void *, void *);
+
+static unsigned int syscall_halt(void *, void *, void *);
+static unsigned int syscall_exit(void *, void *, void *);
+static unsigned int syscall_create(void *, void *, void *);
+static unsigned int syscall_remove(void *, void *, void *);
+static unsigned int syscall_open(void *, void *, void *);
+static unsigned int syscall_filesize(void *, void *, void *);
+static unsigned int syscall_read(void *, void *, void *);
 
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
+
+void syscall_init(void) {
+  lock_init(&filesys_lock);
+  intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+
+  // Initialize the array such that handlers can be
+  // retrived by indexing into the array using the handler name
+  syscall_functions[SYS_HALT] = syscall_halt;
+  syscall_functions[SYS_EXIT] = syscall_exit;
+  syscall_functions[SYS_CREATE] = syscall_create;
+  syscall_functions[SYS_REMOVE] = syscall_remove;
+  syscall_functions[SYS_OPEN] = syscall_open;
+  syscall_functions[SYS_FILESIZE] = syscall_filesize;
+  syscall_functions[SYS_READ] = syscall_read;
+}
 
 static void check_valid_pointer(void *pointer) {
   struct thread *t = thread_current();
@@ -54,9 +75,6 @@ static int get_syscall_number(struct intr_frame *f) {
   void *stack_ptr = f->esp;
   check_valid_pointer(stack_ptr);
   int sys_call_no = *(int *)stack_ptr;
-
-  // TODO Now we force a syscall no for testing
-  sys_call_no = SYS_EXIT;
 
   // DEBUG
   printf("syscall no is %d\n", sys_call_no);
@@ -80,45 +98,51 @@ static struct opened_file *get_opened_file(int fd) {
   return NULL;
 }
 
-void syscall_init(void) {
-  lock_init(&filesys_lock);
-  intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
-
-  // Initialize the array such that handlers can be
-  // retrived by indexing into the array using the handler name
-  syscall_functions[SYS_HALT] = syscall_halt;
-  syscall_functions[SYS_EXIT] = syscall_exit;
-}
-
 static void syscall_handler(struct intr_frame *f) {
   // DEBUG
   printf("system call!\n");
   int sys_call_no = get_syscall_number(f);
-  void *arg1 = f->esp + 1;  // Does this move to (esp + 4 bytes)?
-  void *arg2 = f->esp + 2;
-  void *arg3 = f->esp + 3;
+  // DEBUG
+  sys_call_no = SYS_FILESIZE;
+  printf("testing syscall no %d\n", sys_call_no);
+
+  void *arg1 = NULL;  // f->esp + 4;
+  void *arg2 = NULL;  // f->esp + 8;
+  void *arg3 = NULL;  // f->esp + 12;
   // DEBUG
   printf("Dispatching a function!\n");
+  syscall_create(arg1, arg2, arg3);
+  syscall_open(arg1, arg2, arg3);
+
   syscall_func function = syscall_functions[sys_call_no];
-  function(arg1, arg2, arg3);
+
+  unsigned int result = function(arg1, arg2, arg3);
+  printf("result of sys call: %x\n", result);
   thread_exit();
 }
 
 // Tested OK
-static void syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
-                         void *arg3 UNUSED) {
+static unsigned int syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
+                                 void *arg3 UNUSED) {
   shutdown_power_off();
+  NOT_REACHED();
+  return 0;  // void
 }
 
-static void syscall_exit(void *arg1, void *arg2 UNUSED, void *arg3 UNUSED) {
+// TODO store exit_status
+static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
+                                 void *arg3 UNUSED) {
   check_valid_pointer(arg1);
   int exit_status = *(int *)arg1;
   // This exit_status should not be stored in t->status
-  // instead, it should be stored in the kernel somewhere
+  // instead, it should be stored somewhere in the kernel
+
+  // save_exit_status(exit_status);
 
   struct thread *t = thread_current();
   printf("%s: exit(%d)\n", t->name, exit_status);
   thread_exit();
+  return 0;  // void
 }
 
 // haven't impelemented synchronization yet
@@ -128,25 +152,44 @@ pid_t syscall_exec(const char *cmd_line) { return process_execute(cmd_line); }
 // haven't completed yet
 int syscall_wait(pid_t pid) { return process_wait(pid); }
 
-bool syscall_create(const char *file, unsigned initial_size) {
+//Tested OK
+static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
+  const char *file = "xxx";        // TODO arg1
+  unsigned int initial_size = 10;  // TODO arg2
   lock_acquire(&filesys_lock);
   bool result = filesys_create(file, initial_size);
   lock_release(&filesys_lock);
-  return result;
+  return result;  // bool
 }
 
-bool syscall_remove(const char *file) { return filesys_remove(file); }
+//Tested OK
+static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
+                                   void *arg3 UNUSED) {
+  const char *file = "xxx";  // TODO arg1
+  lock_acquire(&filesys_lock);
+  bool result = filesys_remove(file);
+  lock_release(&filesys_lock);
+  return result;  // bool
+}
 
-int syscall_open(const char *file_name) {
+//Tested OK
+static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
+                                 void *arg3 UNUSED) {
+  const char *file_name = "xxx";  // TODO arg1
+  lock_acquire(&filesys_lock);
   struct file *file = filesys_open(file_name);
   if (!file) {
+    lock_release(&filesys_lock);
     return -1;
   }
 
   struct opened_file *opened_file = palloc_get_page(PAL_ZERO);
   if (!opened_file) {
+    lock_release(&filesys_lock);
     return -1;
   }
+
+  lock_release(&filesys_lock);
 
   opened_file->file = file;
   struct list *opened_files = &thread_current()->opened_files;
@@ -159,32 +202,50 @@ int syscall_open(const char *file_name) {
   }
   list_push_back(opened_files, &opened_file->elem);
 
-  return opened_file->fd;
+  return opened_file->fd;  // int
 }
 
-int syscall_filesize(int fd) {
+//Tested OK
+static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
+                                     void *arg3 UNUSED) {
+  int fd = 2;  // TODO arg1
+
   struct opened_file *opened_file = get_opened_file(fd);
 
   if (!opened_file) {
     return -1;
   }
-  return file_length(opened_file->file);
+  lock_acquire(&filesys_lock);
+  off_t result = file_length(opened_file->file);
+  lock_release(&filesys_lock);
+
+  return result;  // int
 }
 
-int syscall_read(int fd, void *buffer, unsigned size) {
+
+static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
+  int fd = 1;  // TODO arg1
+  void *buffer = arg2;
+  unsigned int size = 10;  // TODO arg3
+
   if (fd == STDIN_FILENO) {
     for (unsigned int i = 0; i < size; i++) {
       *(uint8_t *)(buffer + i) = input_getc();
     }
-    return (int)size;
+    return size;  // int
   }
 
+  lock_acquire(&filesys_lock);
   struct opened_file *opened_file = get_opened_file(fd);
   if (!opened_file) {
+    lock_release(&filesys_lock);
     return -1;
   }
 
-  return file_read(opened_file->file, buffer, size);
+  off_t result = file_read(opened_file->file, buffer, size);
+  lock_release(&filesys_lock);
+
+  return result;  // int
 }
 
 int syscall_write(int fd, const void *buffer, unsigned size) {
