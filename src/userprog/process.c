@@ -81,7 +81,7 @@ static void start_process(void *file_name_) {
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
   // DEBUG
-  //printf("%s\n", argv[argc - 1]);
+  // printf("%s\n", argv[argc - 1]);
 
   if (success) {
     /* Push arguments in reverse order */

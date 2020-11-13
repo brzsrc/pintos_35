@@ -127,6 +127,7 @@ void sema_up(struct semaphore *sema) {
   sema->value++;
 
   intr_set_level(old_level);
+  // TODO: Why yielding causes problems?
   // if (t_new != NULL && t_new->priority > t_current->priority) {
   //   thread_yield();
   // }

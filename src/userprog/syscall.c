@@ -54,6 +54,10 @@ static int get_syscall_number(struct intr_frame *f) {
   void *stack_ptr = f->esp;
   check_valid_pointer(stack_ptr);
   int sys_call_no = *(int *)stack_ptr;
+
+  // TODO Now we force a syscall no for testing
+  sys_call_no = SYS_EXIT;
+
   // DEBUG
   printf("syscall no is %d\n", sys_call_no);
   return sys_call_no;
@@ -100,6 +104,7 @@ static void syscall_handler(struct intr_frame *f) {
   thread_exit();
 }
 
+// Tested OK
 static void syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
                          void *arg3 UNUSED) {
   shutdown_power_off();
@@ -107,9 +112,12 @@ static void syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
 
 static void syscall_exit(void *arg1, void *arg2 UNUSED, void *arg3 UNUSED) {
   check_valid_pointer(arg1);
-  int status = *(int *)arg1;
-  thread_current()->status = status;
-  printf("%s: exit(%d)\n", thread_current()->name, status);
+  int exit_status = *(int *)arg1;
+  // This exit_status should not be stored in t->status
+  // instead, it should be stored in the kernel somewhere
+
+  struct thread *t = thread_current();
+  printf("%s: exit(%d)\n", t->name, exit_status);
   thread_exit();
 }
 
@@ -121,7 +129,10 @@ pid_t syscall_exec(const char *cmd_line) { return process_execute(cmd_line); }
 int syscall_wait(pid_t pid) { return process_wait(pid); }
 
 bool syscall_create(const char *file, unsigned initial_size) {
-  return filesys_create(file, initial_size);
+  lock_acquire(&filesys_lock);
+  bool result = filesys_create(file, initial_size);
+  lock_release(&filesys_lock);
+  return result;
 }
 
 bool syscall_remove(const char *file) { return filesys_remove(file); }
