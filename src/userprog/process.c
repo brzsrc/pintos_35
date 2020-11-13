@@ -85,16 +85,17 @@ static void start_process(void *file_name_) {
       memcpy(if_.esp, argv[i], strlen(argv[i]) + 1);
       addr[i] = (int)if_.esp;
     }
-    
+
+    void *null_ptr = NULL;
+
     /* Word-align */
-    uint32_t zero = 0x0000;
     while ((int)if_.esp % 4 != 0) {
       if_.esp--;
     }
 
     /* Push a null pointer sentinel */
     if_.esp -= sizeof(char *);
-    memcpy(if_.esp, &zero, sizeof(char *));
+    memcpy(if_.esp, &null_ptr, sizeof(char *));
 
     /* Push pointers to arguments */
     for (int i = argc - 1; i >= 0; i--) {
@@ -113,7 +114,7 @@ static void start_process(void *file_name_) {
 
     /* Push a fake return address 0 */
     if_.esp -= sizeof(void(*));
-    memcpy(if_.esp, &zero, sizeof(void(*)));
+    memcpy(if_.esp, &null_ptr, sizeof(void *));
   }
 
   /* If load failed, quit. */
