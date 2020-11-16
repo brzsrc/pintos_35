@@ -42,6 +42,7 @@ static void child_init(struct child *child, struct thread *t, bool success) {
   child->exit_status = -1;
   child->parent_terminated = false;
   child->terminated = false;
+  child->wait_called = false;
   sema_init (&child->wait_sema, 0);
   t->child = child;
 }
@@ -50,7 +51,7 @@ static void child_init(struct child *child, struct thread *t, bool success) {
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-tid_t process_execute(const char *file_name) {
+tid_t process_execute(const char *file_name) {x
   char *fn_copy;
   tid_t tid;
   char *token, *save_ptr;
@@ -183,7 +184,16 @@ int process_wait(tid_t child_tid) {
   for (e = list_begin(&cur_t->childs); e != list_end(&cur_t->childs);
        e = list_next(e)) {
     c = list_entry(e, struct child, elem);
-    if (c->child_tid == child_tid) {
+    if (c->child_tid == child_tid && !c->wait_called) {
+      /* to make sure wait only called once for one child per parent thread */
+      c->wait_called = true;
+
+      /* to get child's exit_status, we need to wait until child terminates*/
+      if (!c->terminated)
+      {
+        sema_down(&c->wait_sema);
+      }
+      list_remove(&c->elem);
       return c->exit_status;
     }
   }
@@ -211,13 +221,13 @@ void process_exit(void) {
   if(!list_empty(childs)) {
     struct list_elem *e;
     for (e = list_begin(childs); e != list_end(childs); e = list_next(e)) {
-      struct child *child = list_entry (e, struct child, elem);
-      if(child->terminated) {
+      struct child *c = list_entry (e, struct child, elem);
+      if(c->terminated) {
         list_remove(e);
-        palloc_free_page(child);
+        palloc_free_page(c);
       } else
       {
-        child->parent_terminated = true; 
+        c->parent_terminated = true; 
       }
     }
   }
@@ -231,9 +241,11 @@ void process_exit(void) {
   /* update current thread's child and 
     free it if its parent terminated */
   child->terminated = true;
+  sema_up(&child->wait_sema);
   if(child->parent_terminated) {
     palloc_free_page(child);
   }
+  
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

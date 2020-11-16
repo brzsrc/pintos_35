@@ -11,7 +11,7 @@ struct child {
 
     bool terminated;
     bool parent_terminated;
-
+    bool wait_called;
     struct semaphore wait_sema;
 };
 
