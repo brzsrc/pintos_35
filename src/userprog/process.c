@@ -42,6 +42,7 @@ static void child_init(struct child *child, struct thread *t, bool success) {
   child->exit_status = -1;
   child->parent_terminated = false;
   child->terminated = false;
+  child->wait_called = false;
   sema_init (&child->wait_sema, 0);
   t->child = child;
 }
@@ -108,7 +109,7 @@ static void start_process(void *fc) {
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
 
-  child_init(file_child->child, thread_current, success);
+  child_init(file_child->child, thread_current(), success);
 
   if (success) {
     /* I don't know why */
@@ -182,7 +183,16 @@ int process_wait(tid_t child_tid) {
   for (e = list_begin(&cur_t->childs); e != list_end(&cur_t->childs);
        e = list_next(e)) {
     c = list_entry(e, struct child, elem);
-    if (c->child_tid == child_tid) {
+    if (c->child_tid == child_tid && !c->wait_called) {
+      /* to make sure wait only called once for one child per parent thread */
+      c->wait_called = true;
+
+      /* to get child's exit_status, we need to wait until child terminates*/
+      if (!c->terminated)
+      {
+        sema_down(&c->wait_sema);
+      }
+      list_remove(&c->elem);
       return c->exit_status;
     }
   }
@@ -195,7 +205,7 @@ void process_exit(void) {
   uint32_t *pd;
   struct list *opened_files = &cur->opened_files;
   struct list *childs = &cur->childs;
-  struct child *child = &cur->child;
+  struct child *child = cur->child;
 
   /* free all the opened files in current thread's opened file list */
   while (!list_empty (opened_files))
@@ -210,13 +220,13 @@ void process_exit(void) {
   if(!list_empty(childs)) {
     struct list_elem *e;
     for (e = list_begin(childs); e != list_end(childs); e = list_next(e)) {
-      struct child *child = list_entry (e, struct child, elem);
-      if(child->terminated) {
+      struct child *c = list_entry (e, struct child, elem);
+      if(c->terminated) {
         list_remove(e);
-        palloc_free_page(child);
+        palloc_free_page(c);
       } else
       {
-        child->parent_terminated = true; 
+        c->parent_terminated = true; 
       }
     }
   }
@@ -230,9 +240,11 @@ void process_exit(void) {
   /* update current thread's child and 
     free it if its parent terminated */
   child->terminated = true;
+  sema_up(&child->wait_sema);
   if(child->parent_terminated) {
     palloc_free_page(child);
   }
+  
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

@@ -147,9 +147,13 @@ static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
   return 0;  // void
 }
 
-// haven't impelemented synchronization yet
 // let pid = tid
-pid_t syscall_exec(const char *cmd_line) { return process_execute(cmd_line); }
+pid_t syscall_exec(const char *cmd_line) { 
+  lock_acquire(&filesys_lock);
+  tid_t tid = process_execute(cmd_line); 
+  lock_release(&filesys_lock);
+  return tid;
+}
 
 // haven't completed yet
 static unsigned int syscall_wait(void *arg1, void *arg2 UNUSED,
@@ -271,9 +275,10 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
     return -1;
   }
 
-  off_t result = file_write(opened_file->file, buffer, size);
+  lock_acquire(&filesys_lock);
+  off_t off = file_write(opened_file->file, buffer, size);
   lock_release(&filesys_lock);
-  return result;  // off_t
+  return off;
 }
 
 static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
@@ -292,6 +297,10 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
     lock_release(&filesys_lock);
     return 0;  // void
   }
+
+  lock_acquire(&filesys_lock);
+  file_seek(opened_file->file, position);
+  lock_release(&filesys_lock);
 }
 
 static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
@@ -312,6 +321,11 @@ static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
     lock_release(&filesys_lock);
     return result;  // off_t
   }
+
+  lock_acquire(&filesys_lock);
+  off_t off = file_tell(opened_file->file);
+  lock_release(&filesys_lock);
+  return off;
 }
 
 static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
@@ -324,8 +338,9 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
     return -1;
   }
 
+  lock_acquire(&filesys_lock);
   file_close(opened_file->file);
-
+  lock_release(&filesys_lock);
   list_remove(&opened_file->elem);
   palloc_free_page(opened_file);
   return 0;  // void
