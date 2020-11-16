@@ -24,11 +24,25 @@
 
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
+static void child_init();
 
 /* Store number of arguments*/
 int argc;
 /* Store arguments*/
 char *argv[WORD_LIMIT];
+
+static void child_init(struct child *child, struct thread *t, bool success) {
+  if(success) {
+    child->child_tid = t->tid;
+  } else
+  {
+    child->child_tid = -1;
+  }
+  child->exit_status = -1;
+  child->if_parent_terminated = false;
+  child->if_terminated = false;
+  sema_init (&child->wait_sema, 0);
+}
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -45,8 +59,13 @@ tid_t process_execute(const char *file_name) {
   // This 0 is suspicious. It should be one of the palloc flags?
   // Further experiments show that this is not an error
   fn_copy = palloc_get_page(PAL_ZERO);
-
   if (fn_copy == NULL) return TID_ERROR;
+
+  struct child *child = palloc_get_page(PAL_ZERO);
+  struct file_child *fc = palloc_get_page(PAL_ZERO);
+  fc->child = child;
+  fc->fn_copy = fn_copy;
+
   strlcpy(fn_copy, file_name, PGSIZE);
 
   token = strtok_r(fn_copy, " ", &save_ptr);
@@ -57,18 +76,27 @@ tid_t process_execute(const char *file_name) {
     token = strtok_r(NULL, " ", &save_ptr);
   }
 
+  
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create(file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR) palloc_free_page(fn_copy);
+  tid = thread_create(file_name, PRI_DEFAULT, start_process, fc);
+  if (tid == TID_ERROR) {
+    palloc_free_page(fn_copy);
+  }
+
+  list_push_back(&thread_current()->childs, &child->elem);
+  palloc_free_page(fc);
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
-static void start_process(void *file_name_) {
-  char *file_name = file_name_;
+static void start_process(void *fc) {
+  struct file_child* file_child = (struct file_child *)fc;
+  char *file_name = file_child->fn_copy;
   struct intr_frame if_;
   bool success;
+  // char *addr[argc];
   int addr[argc];
 
   /* Initialize interrupt frame and load executable. */
@@ -78,7 +106,12 @@ static void start_process(void *file_name_) {
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
 
+  child_init(file_child->child, thread_current, success);
+
   if (success) {
+    /* I don't know why */
+    if_.esp -= sizeof(int);
+
     /* Push arguments in reverse order */
     for (int i = argc - 1; i >= 0; i--) {
       if_.esp -= strlen(argv[i]) + 1;
@@ -86,16 +119,15 @@ static void start_process(void *file_name_) {
       addr[i] = (int)if_.esp;
     }
 
-    void *null_ptr = NULL;
-
     /* Word-align */
+    uint8_t zero = 0;
     while ((int)if_.esp % 4 != 0) {
       if_.esp--;
     }
 
     /* Push a null pointer sentinel */
     if_.esp -= sizeof(char *);
-    memcpy(if_.esp, &null_ptr, sizeof(char *));
+    memcpy(if_.esp, &zero, sizeof(char *));
 
     /* Push pointers to arguments */
     for (int i = argc - 1; i >= 0; i--) {
@@ -114,9 +146,10 @@ static void start_process(void *file_name_) {
 
     /* Push a fake return address 0 */
     if_.esp -= sizeof(void(*));
-    memcpy(if_.esp, &null_ptr, sizeof(void *));
+    memcpy(if_.esp, &zero, sizeof(void(*)));
   }
 
+  hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
   /* If load failed, quit. */
   palloc_free_page(file_name);
   if (!success) thread_exit();
@@ -147,8 +180,8 @@ int process_wait(tid_t child_tid) {
   struct child *c;
   struct list_elem *e;
 
-  for (struct list_elem *child_e = list_begin(&thread_current()->child_process);
-       child_e != list_end(&thread_current()->child_process);
+  for (struct list_elem *child_e = list_begin(&thread_current()->childs);
+       child_e != list_end(&thread_current()->childs);
        child_e = list_next(child_e)) {
     struct child *child_c = list_entry(child_e, struct child, elem);
     if (child_c->tid == child_tid) {
