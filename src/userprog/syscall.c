@@ -42,7 +42,9 @@ static unsigned int syscall_open(void *, void *, void *);
 static unsigned int syscall_filesize(void *, void *, void *);
 static unsigned int syscall_read(void *, void *, void *);
 static unsigned int syscall_write(void *, void *, void *);
-
+static unsigned int syscall_seek(void *, void *, void *);
+static unsigned int syscall_tell(void *, void *, void *);
+static unsigned int syscall_close(void *, void *, void *);
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 
 void syscall_init(void) {
@@ -59,6 +61,9 @@ void syscall_init(void) {
   syscall_functions[SYS_FILESIZE] = syscall_filesize;
   syscall_functions[SYS_READ] = syscall_read;
   syscall_functions[SYS_WRITE] = syscall_write;
+  syscall_functions[SYS_SEEK] = syscall_seek;
+  syscall_functions[SYS_TELL] = syscall_tell;
+  syscall_functions[SYS_CLOSE] = syscall_close;
 }
 
 static void check_valid_pointer(void *pointer) {
@@ -253,33 +258,57 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
   return file_write(opened_file->file, buffer, size);
 }
 
-void syscall_seek(int fd, unsigned position) {
-  struct opened_file *opened_file = get_opened_file(fd);
+static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
+  int fd = *(int *)arg1;
+  unsigned int position = *(unsigned int *)arg2;
+  struct opened_file *opened_file;
+
+  lock_acquire(&filesys_lock);
+  opened_file = get_opened_file(fd);
 
   if (!opened_file) {
-    return;
+    lock_release(&filesys_lock);
+    return 0;
+  } else {
+    file_seek(opened_file->file, position);
+    lock_release(&filesys_lock);
+    return 0;  // void
   }
-
-  file_seek(opened_file->file, position);
 }
 
-unsigned syscall_tell(int fd) {
-  struct opened_file *opened_file = get_opened_file(fd);
+static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
+                                 void *arg3 UNUSED) {
+  int fd = *(int *)arg1;
 
+  struct opened_file *opened_file;
+  unsigned int result;
+
+  lock_acquire(&filesys_lock);
+  opened_file = get_opened_file(fd);
+
+  if (!opened_file) {
+    lock_release(&filesys_lock);
+    return 0;
+  } else {
+    result = file_tell(opened_file->file);
+    lock_release(&filesys_lock);
+    return result;  // (unsigned int)off_t
+  }
+}
+
+static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
+                                  void *arg3 UNUSED) {
+  int fd = *(int *)arg1;
+  struct opened_file *opened_file;
+
+  opened_file = get_opened_file(fd);
   if (!opened_file) {
     return -1;
   }
 
-  return file_tell(opened_file->file);
-}
-
-void syscall_close(int fd) {
-  struct opened_file *opened_file = get_opened_file(fd);
-  if (!opened_file) {
-    return;
-  }
-
   file_close(opened_file->file);
+
   list_remove(&opened_file->elem);
   palloc_free_page(opened_file);
+  return 0;  // void
 }
