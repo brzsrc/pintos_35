@@ -32,13 +32,12 @@ int argc;
 /* Store arguments*/
 char *argv[WORD_LIMIT];
 
+struct child *child_;
+
 static void child_init(struct child *child, struct thread *t, bool success) {
-  if(success) {
-    child->child_tid = t->tid;
-  } else
-  {
-    child->child_tid = -1;
-  }
+// static void child_init(struct child *child) {
+  child->child_tid = success ? thread_current()->tid : -1;
+  // printf("child->child_tid: %d", child->child_tid);
   child->exit_status = -1;
   child->parent_terminated = false;
   child->terminated = false;
@@ -65,41 +64,33 @@ tid_t process_execute(const char *file_name) {
   if (fn_copy == NULL) return TID_ERROR;
 
   struct child *child = palloc_get_page(PAL_ZERO);
-  struct file_child *fc = palloc_get_page(PAL_ZERO);
-  fc->child = child;
-  fc->fn_copy = fn_copy;
-
+  child_ = child;
   strlcpy(fn_copy, file_name, PGSIZE);
 
   token = strtok_r(fn_copy, " ", &save_ptr);
-
   while (token != NULL) {
     argv[argc] = token;
     argc++;
     token = strtok_r(NULL, " ", &save_ptr);
   }
 
-  
-
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create(file_name, PRI_DEFAULT, start_process, fc);
+  tid = thread_create(argv[0], PRI_DEFAULT, start_process, child);
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
   }
 
+  child->child_tid = tid;
+  sema_init (&child->wait_sema, 0);
   list_push_back(&thread_current()->childs, &child->elem);
-  palloc_free_page(fc);
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
-static void start_process(void *fc) {
-  struct file_child* file_child = (struct file_child *)fc;
-  char *file_name = file_child->fn_copy;
+static void start_process(void *child) {
   struct intr_frame if_;
   bool success;
-  // char *addr[argc];
   int addr[argc];
 
   /* Initialize interrupt frame and load executable. */
@@ -107,9 +98,10 @@ static void start_process(void *fc) {
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load(file_name, &if_.eip, &if_.esp);
+  success = load(argv[0], &if_.eip, &if_.esp);
 
-  child_init(file_child->child, thread_current(), success);
+  child_init(child_, thread_current(), success);
+  file_deny_write(thread_current()->file);
 
   if (success) {
     /* I don't know why */
@@ -152,8 +144,9 @@ static void start_process(void *fc) {
   }
 
   hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
-  /* If load failed, quit. */
-  palloc_free_page(file_name);
+  // /* If load failed, quit. */
+  // palloc_free_page(file_name);
+
   if (!success) thread_exit();
 
   /* Start the user process by simulating a return from an
@@ -176,10 +169,17 @@ static void start_process(void *fc) {
  * This function will be implemented in task 2.
  * For now, it does nothing. */
 int process_wait(tid_t child_tid) {
+
+  // while(true) {
+
+  // }
+
+  bool empty;
   struct child *c;
   struct list_elem *e;
   struct thread *cur_t = thread_current();
 
+  empty = list_empty(&thread_current()->childs);
   for (e = list_begin(&cur_t->childs); e != list_end(&cur_t->childs);
        e = list_next(e)) {
     c = list_entry(e, struct child, elem);
@@ -193,7 +193,9 @@ int process_wait(tid_t child_tid) {
         sema_down(&c->wait_sema);
       }
       list_remove(&c->elem);
-      return c->exit_status;
+      int exit_status = c->exit_status;
+      palloc_free_page(c);
+      return exit_status;
     }
   }
     return -1;
@@ -231,7 +233,7 @@ void process_exit(void) {
     }
   }
 
-  /* Release the executable file */
+  // /* Release the executable file */
   if(cur->file) {
     file_allow_write(cur->file);
     file_close(cur->file);
@@ -368,9 +370,6 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
     goto done;
   }
 
-  file_deny_write(file);
-  t->file = file;
-
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
       memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 ||
@@ -435,6 +434,9 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
 
   /* Start address. */
   *eip = (void (*)(void))ehdr.e_entry;
+
+  file_deny_write(file);
+  t->file = file;
 
   success = true;
 
