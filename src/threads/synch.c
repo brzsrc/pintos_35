@@ -115,22 +115,25 @@ void sema_up(struct semaphore *sema) {
   old_level = intr_disable();
   t_current = thread_current();
 
-  // TODO: Why is there still warnings even if I check t_new != NULL before
-  // using it?
-  t_new = thread_current();
-
   if (!list_empty(&sema->waiters)) {
     list_sort(&sema->waiters, thread_compare_priority, NULL);
     t_new = list_entry(list_pop_front(&sema->waiters), struct thread, elem);
     thread_unblock(t_new);
+  }else{
+    t_new = NULL;
   }
+
   sema->value++;
 
   intr_set_level(old_level);
-  // TODO: Why yielding causes problems?
-  // if (t_new != NULL && t_new->priority > t_current->priority) {
-  //   thread_yield();
-  // }
+
+  if (t_new != NULL && t_new->priority > t_current->priority) {
+    if (intr_context()) {
+      intr_yield_on_return();
+    } else {
+      thread_yield();
+    }
+  }
 }
 
 static void sema_test_helper(void *sema_);
