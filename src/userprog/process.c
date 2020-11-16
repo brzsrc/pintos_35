@@ -122,14 +122,13 @@ static void start_process(void *fc) {
     }
 
     /* Word-align */
-    uint8_t zero = 0;
     while ((int)if_.esp % 4 != 0) {
       if_.esp--;
     }
 
     /* Push a null pointer sentinel */
     if_.esp -= sizeof(char *);
-    memcpy(if_.esp, &zero, sizeof(char *));
+    memset(if_.esp, 0, sizeof(char *));
 
     /* Push pointers to arguments */
     for (int i = argc - 1; i >= 0; i--) {
@@ -148,7 +147,7 @@ static void start_process(void *fc) {
 
     /* Push a fake return address 0 */
     if_.esp -= sizeof(void(*));
-    memcpy(if_.esp, &zero, sizeof(void(*)));
+    memset(if_.esp, 0, sizeof(void(*)));
   }
 
   hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
