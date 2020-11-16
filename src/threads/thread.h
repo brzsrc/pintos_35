@@ -109,15 +109,17 @@ struct thread {
       thread_waiting_for; /* the thread that holds the lock this thread needs */
   struct list locks;      /* The list of all the locks the thread holds */
 
+#ifdef USERPROG
+  /* Owned by userprog/process.c. */
+  uint32_t *pagedir; /* Page directory. */
+
   /* Shared between thread.c and systemcall.c. */
   struct list
       opened_files; /* The list of all the open files the thread holds */
 
   struct list childs; /* The list of child processes the thread holds */
-
-#ifdef USERPROG
-  /* Owned by userprog/process.c. */
-  uint32_t *pagedir; /* Page directory. */
+  struct child *child; /* the child struct the thread holds */
+  struct file *file; /* the file executed by the thread */
 #endif
 
   /* Owned by thread.c. */

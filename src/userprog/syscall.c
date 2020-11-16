@@ -17,12 +17,6 @@
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 
-struct opened_file {
-  struct file *file;
-  int fd;
-  struct list_elem elem;
-};
-
 // Function pointers to syscall functions
 typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
 
@@ -35,7 +29,7 @@ static struct opened_file *get_opened_file(int fd);
 static void syscall_handler(struct intr_frame *);
 
 static unsigned int syscall_halt(void *, void *, void *);
-static unsigned int syscall_exit(void *, void *, void *);
+static void syscall_exit(void *, void *, void *);
 static unsigned int syscall_create(void *, void *, void *);
 static unsigned int syscall_remove(void *, void *, void *);
 static unsigned int syscall_open(void *, void *, void *);
@@ -118,20 +112,30 @@ static unsigned int syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
   return 0;  // void
 }
 
-// TODO store exit_status
-static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
+// // TODO store exit_status
+// static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
+//                                  void *arg3 UNUSED) {
+//   check_valid_pointer(arg1);
+//   int exit_status = *(int *)arg1;
+//   // This exit_status should not be stored in t->status
+//   // instead, it should be stored somewhere in the kernel
+
+//   // save_exit_status(exit_status);
+
+//   struct thread *t = thread_current();
+//   printf("%s: exit(%d)\n", t->name, exit_status);
+//   thread_exit();
+//   return 0;  // void
+// }
+
+static void syscall_exit(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   check_valid_pointer(arg1);
   int exit_status = *(int *)arg1;
-  // This exit_status should not be stored in t->status
-  // instead, it should be stored somewhere in the kernel
-
-  // save_exit_status(exit_status);
-
   struct thread *t = thread_current();
+  t->child->exit_status = exit_status;
   printf("%s: exit(%d)\n", t->name, exit_status);
   thread_exit();
-  return 0;  // void
 }
 
 // haven't impelemented synchronization yet

@@ -2,14 +2,15 @@
 #define USERPROG_PROCESS_H
 
 #include "threads/thread.h"
+#include "threads/synch.h"
 
 struct child {
     tid_t child_tid;
     struct list_elem elem;
     int exit_status;
 
-    bool if_terminated;
-    bool if_parent_terminated;
+    bool terminated;
+    bool parent_terminated;
 
     struct semaphore wait_sema;
 };

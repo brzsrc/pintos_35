@@ -19,12 +19,13 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 
 #define WORD_LIMIT (128)
 
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
-static void child_init();
+static void child_init(struct child *child, struct thread *t, bool success);
 
 /* Store number of arguments*/
 int argc;
@@ -39,9 +40,10 @@ static void child_init(struct child *child, struct thread *t, bool success) {
     child->child_tid = -1;
   }
   child->exit_status = -1;
-  child->if_parent_terminated = false;
-  child->if_terminated = false;
+  child->parent_terminated = false;
+  child->terminated = false;
   sema_init (&child->wait_sema, 0);
+  t->child = child;
 }
 
 /* Starts a new thread running a user program loaded from
@@ -174,31 +176,64 @@ static void start_process(void *fc) {
  * This function will be implemented in task 2.
  * For now, it does nothing. */
 int process_wait(tid_t child_tid) {
-  for (;;) {
-  }
-
   struct child *c;
   struct list_elem *e;
+  struct thread *cur_t = thread_current();
 
-  for (struct list_elem *child_e = list_begin(&thread_current()->childs);
-       child_e != list_end(&thread_current()->childs);
-       child_e = list_next(child_e)) {
-    struct child *child_c = list_entry(child_e, struct child, elem);
-    if (child_c->tid == child_tid) {
-      c = child_c;
-      e = child_e;
+  for (e = list_begin(&cur_t->childs); e != list_end(&cur_t->childs);
+       e = list_next(e)) {
+    c = list_entry(e, struct child, elem);
+    if (c->child_tid == child_tid) {
+      return c->exit_status;
     }
   }
-
-  if (!c || !e) return -1;
-
-  return c->exit_status;
+    return -1;
 }
 
 /* Free the current process's resources. */
 void process_exit(void) {
   struct thread *cur = thread_current();
   uint32_t *pd;
+  struct list *opened_files = &cur->opened_files;
+  struct list *childs = &cur->childs;
+  struct child *child = &cur->child;
+
+  /* free all the opened files in current thread's opened file list */
+  while (!list_empty (opened_files))
+    {
+      struct list_elem *e = list_pop_front (opened_files);
+      struct opened_file *opened_file = list_entry (e, struct opened_file, elem);
+      file_close (opened_file->file);
+      palloc_free_page (opened_file);
+    }
+
+  /* free childs(child struct) in current thread's childs list */
+  if(!list_empty(childs)) {
+    struct list_elem *e;
+    for (e = list_begin(childs); e != list_end(childs); e = list_next(e)) {
+      struct child *child = list_entry (e, struct child, elem);
+      if(child->terminated) {
+        list_remove(e);
+        palloc_free_page(child);
+      } else
+      {
+        child->parent_terminated = true; 
+      }
+    }
+  }
+
+  /* Release the executable file */
+  if(cur->file) {
+    file_allow_write(cur->file);
+    file_close(cur->file);
+  }
+
+  /* update current thread's child and 
+    free it if its parent terminated */
+  child->terminated = true;
+  if(child->parent_terminated) {
+    palloc_free_page(child);
+  }
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -321,6 +356,9 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
     printf("load: %s: open failed\n", file_name);
     goto done;
   }
+
+  file_deny_write(file);
+  t->file = file;
 
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
