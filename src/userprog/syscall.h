@@ -14,12 +14,4 @@ struct opened_file {
 
 void syscall_init(void);
 
-// Do not add them into header file because no one else is
-// going to use them
-// void syscall_halt(void);
-// void syscall_exit(int status);
-
-// These are not yet commented out to suppress warnings
-pid_t syscall_exec(const char *cmd_line);
-
 #endif /* userprog/syscall.h */
