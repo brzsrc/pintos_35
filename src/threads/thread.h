@@ -120,6 +120,7 @@ struct thread {
   struct list childs; /* The list of child processes the thread holds */
   struct child *child; /* the child struct the thread holds */
   struct file *file; /* the file executed by the thread */
+  bool is_user_process; /* indicate the current thread is in a user process */
 #endif
 
   /* Owned by thread.c. */

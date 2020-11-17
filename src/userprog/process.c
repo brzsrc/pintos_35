@@ -20,30 +20,26 @@
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
 #include "userprog/syscall.h"
+#include "threads/malloc.h"
 
 #define WORD_LIMIT (128)
 
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
-static void child_init(struct child *child, struct thread *t, bool success);
+static void child_init(struct child *child);
 
 /* Store number of arguments*/
 int argc;
 /* Store arguments*/
 char *argv[WORD_LIMIT];
 
-struct child *child_;
-
-static void child_init(struct child *child, struct thread *t, bool success) {
-// static void child_init(struct child *child) {
-  child->child_tid = success ? thread_current()->tid : -1;
-  // printf("child->child_tid: %d", child->child_tid);
+static void child_init(struct child *child) {
+  child->child_tid = -1;
   child->exit_status = -1;
   child->parent_terminated = false;
   child->terminated = false;
   child->wait_called = false;
   sema_init (&child->wait_sema, 0);
-  t->child = child;
 }
 
 /* Starts a new thread running a user program loaded from
@@ -63,8 +59,10 @@ tid_t process_execute(const char *file_name) {
   fn_copy = palloc_get_page(PAL_ZERO);
   if (fn_copy == NULL) return TID_ERROR;
 
-  struct child *child = palloc_get_page(PAL_ZERO);
-  child_ = child;
+  struct child *child = malloc(sizeof(struct child));
+  child_init(child);
+  list_push_back(&thread_current()->childs, &child->elem);
+
   strlcpy(fn_copy, file_name, PGSIZE);
 
   token = strtok_r(fn_copy, " ", &save_ptr);
@@ -76,22 +74,22 @@ tid_t process_execute(const char *file_name) {
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create(argv[0], PRI_DEFAULT, start_process, child);
+  sema_down(&child->wait_sema);
+
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
   }
-
-  child->child_tid = tid;
-  sema_init (&child->wait_sema, 0);
-  list_push_back(&thread_current()->childs, &child->elem);
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void start_process(void *child) {
+  struct thread *cur_t = thread_current();
   struct intr_frame if_;
   bool success;
   int addr[argc];
+  struct child *child_ = child;
 
   /* Initialize interrupt frame and load executable. */
   memset(&if_, 0, sizeof if_);
@@ -100,8 +98,9 @@ static void start_process(void *child) {
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(argv[0], &if_.eip, &if_.esp);
 
-  child_init(child_, thread_current(), success);
-  file_deny_write(thread_current()->file);
+  child_->child_tid = success ? cur_t->tid : -1;
+  cur_t->child = child;
+  cur_t->is_user_process = true;
 
   if (success) {
     /* I don't know why */
@@ -143,10 +142,9 @@ static void start_process(void *child) {
     memset(if_.esp, 0, sizeof(void(*)));
   }
 
-  hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
-  // /* If load failed, quit. */
-  // palloc_free_page(file_name);
+  // hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
 
+  sema_up(&child_->wait_sema);
   if (!success) thread_exit();
 
   /* Start the user process by simulating a return from an
@@ -170,16 +168,10 @@ static void start_process(void *child) {
  * For now, it does nothing. */
 int process_wait(tid_t child_tid) {
 
-  // while(true) {
-
-  // }
-
-  bool empty;
   struct child *c;
   struct list_elem *e;
   struct thread *cur_t = thread_current();
 
-  empty = list_empty(&thread_current()->childs);
   for (e = list_begin(&cur_t->childs); e != list_end(&cur_t->childs);
        e = list_next(e)) {
     c = list_entry(e, struct child, elem);
@@ -194,7 +186,7 @@ int process_wait(tid_t child_tid) {
       }
       list_remove(&c->elem);
       int exit_status = c->exit_status;
-      palloc_free_page(c);
+      free(c);
       return exit_status;
     }
   }
@@ -214,8 +206,10 @@ void process_exit(void) {
     {
       struct list_elem *e = list_pop_front (opened_files);
       struct opened_file *opened_file = list_entry (e, struct opened_file, elem);
-      file_close (opened_file->file);
-      palloc_free_page (opened_file);
+      lock_acquire(&filesys_lock);
+      file_close(opened_file->file);
+      lock_release(&filesys_lock);
+      free (opened_file);
     }
 
   /* free childs(child struct) in current thread's childs list */
@@ -225,7 +219,7 @@ void process_exit(void) {
       struct child *c = list_entry (e, struct child, elem);
       if(c->terminated) {
         list_remove(e);
-        palloc_free_page(c);
+        free(c);
       } else
       {
         c->parent_terminated = true; 
@@ -234,9 +228,11 @@ void process_exit(void) {
   }
 
   // /* Release the executable file */
-  if(cur->file) {
-    file_allow_write(cur->file);
+  if(cur->file && cur->is_user_process) {
+    // file_allow_write(cur->file);
+    lock_acquire(&filesys_lock);
     file_close(cur->file);
+    lock_release(&filesys_lock);
   }
 
   /* update current thread's child and 
@@ -244,7 +240,7 @@ void process_exit(void) {
   child->terminated = true;
   sema_up(&child->wait_sema);
   if(child->parent_terminated) {
-    palloc_free_page(child);
+    free(child);
   }
   
 
@@ -435,10 +431,11 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
   /* Start address. */
   *eip = (void (*)(void))ehdr.e_entry;
 
-  file_deny_write(file);
+  // file_deny_write(file);
   t->file = file;
 
   success = true;
+  return success;
 
 done:
   /* We arrive here whether the load is successful or not. */

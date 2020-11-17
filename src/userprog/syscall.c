@@ -120,22 +120,6 @@ static unsigned int syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
   return 0;  // void
 }
 
-// // TODO store exit_status
-// static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
-//                                  void *arg3 UNUSED) {
-//   check_valid_pointer(arg1);
-//   int exit_status = *(int *)arg1;
-//   // This exit_status should not be stored in t->status
-//   // instead, it should be stored somewhere in the kernel
-
-//   // save_exit_status(exit_status);
-
-//   struct thread *t = thread_current();
-//   printf("%s: exit(%d)\n", t->name, exit_status);
-//   thread_exit();
-//   return 0;  // void
-// }
-
 static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   check_valid_pointer(arg1);
@@ -149,6 +133,7 @@ static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
 
 // let pid = tid
 pid_t syscall_exec(const char *cmd_line) { 
+  printf("exec");
   lock_acquire(&filesys_lock);
   tid_t tid = process_execute(cmd_line); 
   lock_release(&filesys_lock);
@@ -158,6 +143,7 @@ pid_t syscall_exec(const char *cmd_line) {
 // haven't completed yet
 static unsigned int syscall_wait(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
+                                   printf("wait");
   pid_t pid = *(pid_t *)arg1;
   return process_wait(pid);  // int
 }
@@ -193,7 +179,7 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
     return -1;
   }
 
-  struct opened_file *opened_file = palloc_get_page(PAL_ZERO);
+  struct opened_file *opened_file = malloc(sizeof(struct opened_file));
   if (!opened_file) {
     lock_release(&filesys_lock);
     return -1;
@@ -219,7 +205,6 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
 static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
                                      void *arg3 UNUSED) {
   int fd = *(int *)arg1;
-
   struct opened_file *opened_file = get_opened_file(fd);
 
   if (!opened_file) {
@@ -306,7 +291,6 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
 static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   int fd = *(int *)arg1;
-
   struct opened_file *opened_file;
   unsigned int result;
 
@@ -332,8 +316,8 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
                                   void *arg3 UNUSED) {
   int fd = *(int *)arg1;
   struct opened_file *opened_file;
-
   opened_file = get_opened_file(fd);
+  
   if (!opened_file) {
     return -1;
   }
@@ -342,6 +326,6 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
   file_close(opened_file->file);
   lock_release(&filesys_lock);
   list_remove(&opened_file->elem);
-  palloc_free_page(opened_file);
+  free(opened_file);
   return 0;  // void
 }
