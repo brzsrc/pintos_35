@@ -65,12 +65,14 @@ void syscall_init(void) {
 
 static void check_valid_pointer(void *pointer) {
   struct thread *t = thread_current();
-  if (!is_user_vaddr(pointer) ||
+  if (!pointer || !is_user_vaddr(pointer) ||
       pagedir_get_page(t->pagedir, pointer) == NULL) {
-    // TODO Design the pointer validation logic
-    printf("Invalid pointer access!\n");
-    NOT_REACHED();  // Panic the os to indicate error. Should be replaced by
-                    // some handling logic
+        int exit_status = -1;
+        syscall_exit(&exit_status, NULL, NULL);
+    // // TODO Design the pointer validation logic
+    // printf("Invalid pointer access!\n");
+    // NOT_REACHED();  // Panic the os to indicate error. Should be replaced by
+    //                 // some handling logic
   }
 }
 
@@ -105,6 +107,10 @@ static void syscall_handler(struct intr_frame *f) {
   void *arg2 = f->esp + 8;
   void *arg3 = f->esp + 12;
 
+  check_valid_pointer(arg1);
+  check_valid_pointer(arg2);
+  check_valid_pointer(arg3);
+
   syscall_func function = syscall_functions[sys_call_no];
 
   unsigned int result = function(arg1, arg2, arg3);
@@ -122,7 +128,7 @@ static unsigned int syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
 
 static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
-  check_valid_pointer(arg1);
+  // check_valid_pointer(arg1);
   int exit_status = *(int *)arg1;
   struct thread *t = thread_current();
   t->child->exit_status = exit_status;
