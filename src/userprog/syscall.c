@@ -143,7 +143,9 @@ static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
 
 static void syscall_exit_helper(int exit_status) {
   struct thread *t = thread_current();
-  t->child->exit_status = exit_status;
+  if(t->child) {
+    t->child->exit_status = exit_status;
+  }
   printf("%s: exit(%d)\n", t->name, exit_status);
   thread_exit();
 }
@@ -253,7 +255,7 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
 
   lock_acquire(&filesys_lock);
   struct opened_file *opened_file = get_opened_file(fd);
-  if (!opened_file) {
+  if (!opened_file || !opened_file->file) {
     lock_release(&filesys_lock);
     return -1;
   }
@@ -283,7 +285,6 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
     return -1;
   }
 
-  lock_acquire(&filesys_lock);
   off_t off = file_write(opened_file->file, buffer, size);
   lock_release(&filesys_lock);
   return off;

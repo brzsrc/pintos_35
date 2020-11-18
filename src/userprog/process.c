@@ -65,6 +65,7 @@ tid_t process_execute(const char *file_name) {
 
   strlcpy(fn_copy, file_name, PGSIZE);
 
+  argc = 0;
   token = strtok_r(fn_copy, " ", &save_ptr);
   while (token != NULL) {
     argv[argc] = token;
@@ -78,8 +79,10 @@ tid_t process_execute(const char *file_name) {
 
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
+    return tid;
   }
-  return tid;
+  
+  return child->child_tid;
 }
 
 /* A thread function that loads a user process and starts it
@@ -99,10 +102,10 @@ static void start_process(void *child) {
   success = load(argv[0], &if_.eip, &if_.esp);
 
   child_->child_tid = success ? cur_t->tid : -1;
-  cur_t->child = child;
-  cur_t->is_user_process = true;
+  cur_t->is_user_process = success ? true : false;
+  cur_t->child = child_;
 
-  if (success) {
+  if(success) {
     /* I don't know why */
     if_.esp -= sizeof(int);
 
@@ -140,12 +143,13 @@ static void start_process(void *child) {
     /* Push a fake return address 0 */
     if_.esp -= sizeof(void(*));
     memset(if_.esp, 0, sizeof(void(*)));
+
+    // hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
+    sema_up(&child_->wait_sema);
+  } else
+  {
+    thread_exit();
   }
-
-  // hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
-
-  sema_up(&child_->wait_sema);
-  if (!success) thread_exit();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -207,7 +211,9 @@ void process_exit(void) {
       struct list_elem *e = list_pop_front (opened_files);
       struct opened_file *opened_file = list_entry (e, struct opened_file, elem);
       lock_acquire(&filesys_lock);
-      file_close(opened_file->file);
+      if(opened_file->file) {
+        file_close(opened_file->file);
+      }
       lock_release(&filesys_lock);
       free (opened_file);
     }
@@ -217,7 +223,7 @@ void process_exit(void) {
     struct list_elem *e;
     for (e = list_begin(childs); e != list_end(childs); e = list_next(e)) {
       struct child *c = list_entry (e, struct child, elem);
-      if(c->terminated) {
+      if(c->terminated && cur->is_user_process) {
         list_remove(e);
         free(c);
       } else
@@ -237,10 +243,13 @@ void process_exit(void) {
 
   /* update current thread's child and 
     free it if its parent terminated */
-  child->terminated = true;
-  sema_up(&child->wait_sema);
-  if(child->parent_terminated) {
-    free(child);
+  if(child) {
+    child->terminated = true;
+    sema_up(&child->wait_sema);
+    if(child->parent_terminated || !cur->is_user_process) {
+      list_remove(&child->elem);
+      //free(child);
+    }
   }
   
 
@@ -439,7 +448,9 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
 
 done:
   /* We arrive here whether the load is successful or not. */
-  file_close(file);
+  if(!file) {
+    file_close(file);
+  }
   return success;
 }
 
