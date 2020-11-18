@@ -13,14 +13,14 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
-#include "userprog/tss.h"
 #include "userprog/syscall.h"
-#include "threads/malloc.h"
+#include "userprog/tss.h"
 
 #define WORD_LIMIT (128)
 
@@ -39,7 +39,7 @@ static void child_init(struct child *child) {
   child->parent_terminated = false;
   child->terminated = false;
   child->wait_called = false;
-  sema_init (&child->wait_sema, 0);
+  sema_init(&child->wait_sema, 0);
 }
 
 /* Starts a new thread running a user program loaded from
@@ -81,14 +81,14 @@ tid_t process_execute(const char *file_name) {
   tid = thread_create(argv[0], PRI_DEFAULT, start_process, child);
   sema_down(&child->wait_sema);
 
-  if(child->child_tid == -1) {
+  if (child->child_tid == -1) {
     list_remove(&child->elem);
   }
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
     return tid;
   }
-  
+
   return child->child_tid;
 }
 
@@ -112,7 +112,7 @@ static void start_process(void *child) {
   cur_t->is_user_process = success ? true : false;
   cur_t->child = child_;
 
-  if(success) {
+  if (success) {
     /* I don't know why */
     if_.esp -= sizeof(int);
 
@@ -153,8 +153,7 @@ static void start_process(void *child) {
 
     // hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
     sema_up(&child_->wait_sema);
-  } else
-  {
+  } else {
     thread_exit();
   }
 
@@ -178,7 +177,6 @@ static void start_process(void *child) {
  * This function will be implemented in task 2.
  * For now, it does nothing. */
 int process_wait(tid_t child_tid) {
-
   struct child *c;
   struct list_elem *e;
   struct thread *cur_t = thread_current();
@@ -191,8 +189,7 @@ int process_wait(tid_t child_tid) {
       c->wait_called = true;
 
       /* to get child's exit_status, we need to wait until child terminates*/
-      if (!c->terminated)
-      {
+      if (!c->terminated) {
         sema_down(&c->wait_sema);
       }
       list_remove(&c->elem);
@@ -201,7 +198,7 @@ int process_wait(tid_t child_tid) {
       return exit_status;
     }
   }
-    return -1;
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -213,52 +210,49 @@ void process_exit(void) {
   struct child *child = cur->child;
 
   /* free all the opened files in current thread's opened file list */
-  while (!list_empty (opened_files))
-    {
-      struct list_elem *e = list_pop_front (opened_files);
-      struct opened_file *opened_file = list_entry (e, struct opened_file, elem);
-      lock_acquire(&filesys_lock);
-      if(opened_file->file) {
-        file_close(opened_file->file);
-      }
-      lock_release(&filesys_lock);
-      free (opened_file);
+  while (!list_empty(opened_files)) {
+    struct list_elem *e = list_pop_front(opened_files);
+    struct opened_file *opened_file = list_entry(e, struct opened_file, elem);
+    lock_acquire(&filesys_lock);
+    if (opened_file->file) {
+      file_close(opened_file->file);
     }
+    lock_release(&filesys_lock);
+    free(opened_file);
+  }
 
   /* free childs(child struct) in current thread's childs list */
-  if(!list_empty(childs)) {
+  if (!list_empty(childs)) {
     struct list_elem *e;
     for (e = list_begin(childs); e != list_end(childs); e = list_next(e)) {
-      struct child *c = list_entry (e, struct child, elem);
-      if(c->terminated && cur->is_user_process) {
+      struct child *c = list_entry(e, struct child, elem);
+      if (c->terminated && cur->is_user_process) {
         list_remove(e);
         free(c);
-      } else
-      {
-        c->parent_terminated = true; 
+      } else {
+        c->parent_terminated = true;
       }
     }
   }
 
   // /* Release the executable file */
-  if(cur->file && cur->is_user_process) {
+  if (cur->file && cur->is_user_process) {
     file_allow_write(cur->file);
     lock_acquire(&filesys_lock);
     file_close(cur->file);
     lock_release(&filesys_lock);
   }
 
-  /* update current thread's child and 
+  /* update current thread's child and
     free it if its parent terminated */
-  if(child) {
+  if (child) {
     child->terminated = true;
     sema_up(&child->wait_sema);
-    if(child->parent_terminated) {
+    if (child->parent_terminated) {
       list_remove(&child->elem);
       free(child);
     }
   }
-  
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -455,7 +449,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
 
 done:
   /* We arrive here whether the load is successful or not. */
-  if(!file) {
+  if (!file) {
     file_close(file);
   }
   return success;
