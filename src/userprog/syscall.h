@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-#include "lib/user/syscall.h"
 #include "lib/kernel/list.h"
+#include "lib/user/syscall.h"
 
 struct opened_file {
   struct file *file;

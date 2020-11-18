@@ -22,7 +22,7 @@ typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
 
 struct lock filesys_lock;
 
-static void check_valid_pointer(void *pointer);
+static void check_valid_pointer(const void *pointer);
 static int get_syscall_number(struct intr_frame *f);
 static struct opened_file *get_opened_file(int fd);
 
@@ -66,7 +66,7 @@ void syscall_init(void) {
   syscall_functions[SYS_CLOSE] = syscall_close;
 }
 
-static void check_valid_pointer(void *pointer) {
+static void check_valid_pointer(const void *pointer) {
   struct thread *t = thread_current();
   if (!pointer || !is_user_vaddr(pointer) ||
       pagedir_get_page(t->pagedir, pointer) == NULL) {
@@ -75,8 +75,8 @@ static void check_valid_pointer(void *pointer) {
 }
 
 /* Check arg Non null */
-static void check_valid_arg(void *arg, unsigned int size) {
-  void *temp = arg;
+static void check_valid_arg(const void *arg, unsigned int size) {
+  const void *temp = arg;
   for (unsigned i = 0; i <= size; i++) {
     check_valid_pointer(temp);
     temp++;
@@ -120,8 +120,11 @@ static void syscall_handler(struct intr_frame *f) {
 
   syscall_func function = syscall_functions[sys_call_no];
 
+  // DEBUG
+  // printf("Syscall! %d\n", sys_call_no);
+
   unsigned int result = function(arg1, arg2, arg3);
-  // printf("result of sys call: %x\n", result);
+
   f->eax = result;
 }
 
