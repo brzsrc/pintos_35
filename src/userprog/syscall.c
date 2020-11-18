@@ -81,15 +81,6 @@ static void check_valid_arg(const void *arg, unsigned int size) {
   }
 }
 
-void syscall_exit_helper(int exit_status) {
-  struct thread *t = thread_current();
-  if(t->child) {
-    t->child->exit_status = exit_status;
-  }
-  printf("%s: exit(%d)\n", t->name, exit_status);
-  thread_exit();
-}
-
 static int get_syscall_number(struct intr_frame *f) {
   void *stack_ptr = f->esp;
 
@@ -151,7 +142,7 @@ static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
   return 0;  // void
 }
 
-static void syscall_exit_helper(int exit_status) {
+void syscall_exit_helper(int exit_status) {
   struct thread *t = thread_current();
   if (t->child) {
     t->child->exit_status = exit_status;
