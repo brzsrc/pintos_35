@@ -166,7 +166,7 @@ static unsigned int syscall_exec(void *arg1, void *arg2 UNUSED,
   return tid;  // (pid_t)t_id
 }
 
-// haven't completed yet
+
 static unsigned int syscall_wait(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   check_valid_pointer(arg1);

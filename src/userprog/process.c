@@ -53,17 +53,16 @@ tid_t process_execute(const char *file_name) {
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-
-  // This 0 is suspicious. It should be one of the palloc flags?
-  // Further experiments show that this is not an error
   fn_copy = palloc_get_page(PAL_ZERO);
   if (fn_copy == NULL) return TID_ERROR;
 
   struct child *child = malloc(sizeof(struct child));
   if (child == NULL) {
+    palloc_free_page(fn_copy);
     printf("%s: exit(%d)", thread_current()->name, -1);
     thread_exit();
   }
+
   child_init(child);
   list_push_back(&thread_current()->childs, &child->elem);
 
@@ -81,13 +80,18 @@ tid_t process_execute(const char *file_name) {
   tid = thread_create(argv[0], PRI_DEFAULT, start_process, child);
   sema_down(&child->wait_sema);
 
-  if (child->child_tid == -1) {
-    list_remove(&child->elem);
-  }
+  // If child process cannot be created then return -1
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
     return tid;
   }
+
+  // If child process failed to load then return -1
+  if (child->child_tid == -1) {
+    list_remove(&child->elem);
+  }
+
+  palloc_free_page(fn_copy);
 
   return child->child_tid;
 }
