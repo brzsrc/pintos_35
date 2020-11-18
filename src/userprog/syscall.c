@@ -43,8 +43,6 @@ static unsigned int syscall_tell(void *, void *, void *);
 static unsigned int syscall_close(void *, void *, void *);
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 
-static void syscall_exit_helper(int);
-
 void syscall_init(void) {
   lock_init(&filesys_lock);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -81,6 +79,15 @@ static void check_valid_arg(const void *arg, unsigned int size) {
     check_valid_pointer(temp);
     temp++;
   }
+}
+
+void syscall_exit_helper(int exit_status) {
+  struct thread *t = thread_current();
+  if(t->child) {
+    t->child->exit_status = exit_status;
+  }
+  printf("%s: exit(%d)\n", t->name, exit_status);
+  thread_exit();
 }
 
 static int get_syscall_number(struct intr_frame *f) {
@@ -171,9 +178,6 @@ static unsigned int syscall_exec(void *arg1, void *arg2 UNUSED,
 // haven't completed yet
 static unsigned int syscall_wait(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
-  // DEBUG
-  // printf("syscall_wait\n");
-
   check_valid_pointer(arg1);
   pid_t pid = *(pid_t *)arg1;
 
@@ -307,7 +311,7 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
 
   lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
-  if (!opened_file) {
+  if (!opened_file || !opened_file->file) {
     lock_release(&filesys_lock);
     return -1;
   }
@@ -328,7 +332,7 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
   lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
 
-  if (!opened_file) {
+  if (!opened_file || !opened_file->file) {
     lock_release(&filesys_lock);
     return 0;
   } else {
@@ -353,7 +357,7 @@ static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
   lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
 
-  if (!opened_file) {
+  if (!opened_file || !opened_file->file) {
     lock_release(&filesys_lock);
     return 0;
   } else {
@@ -376,7 +380,7 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
   struct opened_file *opened_file;
   opened_file = get_opened_file(fd);
 
-  if (!opened_file) {
+  if (!opened_file || !opened_file->file) {
     return -1;
   }
 

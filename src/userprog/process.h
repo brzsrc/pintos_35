@@ -15,11 +15,6 @@ struct child {
     struct semaphore wait_sema;
 };
 
-struct file_child{
-    struct child *child;
-    char *fn_copy;
-};
-
 extern struct lock filesys_lock;
 
 tid_t process_execute(const char *file_name);
