@@ -13,5 +13,6 @@ struct opened_file {
 };
 
 void syscall_init(void);
+void syscall_exit_helper(int exit_status);
 
 #endif /* userprog/syscall.h */

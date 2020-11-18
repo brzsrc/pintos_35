@@ -60,6 +60,10 @@ tid_t process_execute(const char *file_name) {
   if (fn_copy == NULL) return TID_ERROR;
 
   struct child *child = malloc(sizeof(struct child));
+  if (child == NULL) {
+    printf("%s: exit(%d)", thread_current()->name, -1);
+    thread_exit();
+  }
   child_init(child);
   list_push_back(&thread_current()->childs, &child->elem);
 
@@ -77,6 +81,9 @@ tid_t process_execute(const char *file_name) {
   tid = thread_create(argv[0], PRI_DEFAULT, start_process, child);
   sema_down(&child->wait_sema);
 
+  if(child->child_tid == -1) {
+    list_remove(&child->elem);
+  }
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
     return tid;
@@ -235,7 +242,7 @@ void process_exit(void) {
 
   // /* Release the executable file */
   if(cur->file && cur->is_user_process) {
-    // file_allow_write(cur->file);
+    file_allow_write(cur->file);
     lock_acquire(&filesys_lock);
     file_close(cur->file);
     lock_release(&filesys_lock);
@@ -246,9 +253,9 @@ void process_exit(void) {
   if(child) {
     child->terminated = true;
     sema_up(&child->wait_sema);
-    if(child->parent_terminated || !cur->is_user_process) {
+    if(child->parent_terminated) {
       list_remove(&child->elem);
-      //free(child);
+      free(child);
     }
   }
   
@@ -440,7 +447,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
   /* Start address. */
   *eip = (void (*)(void))ehdr.e_entry;
 
-  // file_deny_write(file);
+  file_deny_write(file);
   t->file = file;
 
   success = true;
