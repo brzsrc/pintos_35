@@ -249,11 +249,11 @@ void process_exit(void) {
     free it if its parent terminated */
   if (child) {
     child->terminated = true;
-    sema_up(&child->wait_sema);
     if (child->parent_terminated) {
       list_remove(&child->elem);
       free(child);
     }
+    sema_up(&child->wait_sema);
   }
 
   /* Destroy the current process's page directory and switch back
