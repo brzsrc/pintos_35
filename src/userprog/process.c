@@ -117,7 +117,6 @@ static void start_process(void *child) {
   cur_t->child = child_;
 
   if (success) {
-    /* I don't know why */
     if_.esp -= sizeof(int);
 
     /* Push arguments in reverse order */
@@ -155,7 +154,6 @@ static void start_process(void *child) {
     if_.esp -= sizeof(void(*));
     memset(if_.esp, 0, sizeof(void(*)));
 
-    // hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
     sema_up(&child_->wait_sema);
   } else {
     thread_exit();

@@ -118,20 +118,16 @@ static void syscall_handler(struct intr_frame *f) {
 
   syscall_func function = syscall_functions[sys_call_no];
 
-  // DEBUG
-  // printf("Syscall! %d\n", sys_call_no);
-
   unsigned int result = function(arg1, arg2, arg3);
 
   f->eax = result;
 }
 
-// Tested OK
 static unsigned int syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   shutdown_power_off();
   NOT_REACHED();
-  return 0;  // void
+  return 0; 
 }
 
 static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
@@ -139,7 +135,7 @@ static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
   check_valid_pointer(arg1);
   int exit_status = *(int *)arg1;
   syscall_exit_helper(exit_status);
-  return 0;  // void
+  return 0; 
 }
 
 void syscall_exit_helper(int exit_status) {
@@ -157,13 +153,11 @@ static unsigned int syscall_exec(void *arg1, void *arg2 UNUSED,
   check_valid_pointer(arg1);
   const char *cmd_line = *(const char **)arg1;
   check_valid_arg(cmd_line, 0);
-  // DEBUG
-  // printf("syscall_exec\n");
 
   lock_acquire(&filesys_lock);
   tid_t tid = process_execute(cmd_line);
   lock_release(&filesys_lock);
-  return tid;  // (pid_t)t_id
+  return tid; 
 }
 
 
@@ -172,7 +166,7 @@ static unsigned int syscall_wait(void *arg1, void *arg2 UNUSED,
   check_valid_pointer(arg1);
   pid_t pid = *(pid_t *)arg1;
 
-  return process_wait(pid);  // int
+  return process_wait(pid);
 }
 
 static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
@@ -185,10 +179,9 @@ static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
   lock_acquire(&filesys_lock);
   bool result = filesys_create(file, initial_size);
   lock_release(&filesys_lock);
-  return result;  // bool
+  return result; 
 }
 
-// Tested OK
 static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
                                    void *arg3 UNUSED) {
   check_valid_pointer(arg1);
@@ -198,7 +191,7 @@ static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
   lock_acquire(&filesys_lock);
   bool result = filesys_remove(file);
   lock_release(&filesys_lock);
-  return result;  // bool
+  return result;
 }
 
 // Tested OK
@@ -234,10 +227,9 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   }
   list_push_back(opened_files, &opened_file->elem);
 
-  return opened_file->fd;  // int
+  return opened_file->fd; 
 }
 
-// Tested OK
 static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
                                      void *arg3 UNUSED) {
   check_valid_pointer(arg1);
@@ -252,7 +244,7 @@ static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
   off_t result = file_length(opened_file->file);
   lock_release(&filesys_lock);
 
-  return result;  // int
+  return result;
 }
 
 static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
@@ -268,7 +260,7 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
     for (unsigned int i = 0; i < size; i++) {
       *(uint8_t *)(buffer + i) = input_getc();
     }
-    return size;  // int
+    return size; 
   }
 
   lock_acquire(&filesys_lock);
@@ -281,7 +273,7 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
   off_t result = file_read(opened_file->file, buffer, size);
   lock_release(&filesys_lock);
 
-  return result;  // int
+  return result;
 }
 
 static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
@@ -329,7 +321,7 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
   } else {
     file_seek(opened_file->file, position);
     lock_release(&filesys_lock);
-    return 0;  // void
+    return 0; 
   }
 
   lock_acquire(&filesys_lock);
@@ -354,7 +346,7 @@ static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
   } else {
     result = file_tell(opened_file->file);
     lock_release(&filesys_lock);
-    return result;  // off_t
+    return result; 
   }
 
   lock_acquire(&filesys_lock);
@@ -380,5 +372,5 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
   lock_release(&filesys_lock);
   list_remove(&opened_file->elem);
   free(opened_file);
-  return 0;  // void
+  return 0;
 }
