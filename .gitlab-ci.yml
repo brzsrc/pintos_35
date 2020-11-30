@@ -5,7 +5,7 @@ image: ubuntu:18.04
 before_script:
   - echo "Before script section"
   - apt-get update
-  - apt-get install qemu-system-i386
+  - apt-get install -y qemu-system-i386
   - echo "End of Before script section"
 
 after_script:
