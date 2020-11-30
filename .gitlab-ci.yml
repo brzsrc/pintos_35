@@ -9,6 +9,7 @@ before_script:
   - apt-get install -y gcc
   - apt-get install -y make
   - apt-get install -y perl
+  - apt-get install -y libbinutils
   - echo "End of Before script section"
 
 after_script:
