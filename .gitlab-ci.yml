@@ -18,13 +18,13 @@ build1:
   stage: build
   script:
     - echo "Do your build here"
-    - cd src/vm
-    - make clean
 
 test1:
   stage: test
   script:
     - echo "Do a test here"
     - echo "For example run a test suite"
+    - cd src/vm
+    - make clean
     - make check
     - make grade
