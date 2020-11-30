@@ -9,7 +9,8 @@ before_script:
   - echo "For example you might run an update here or install a build dependency"
   - echo "Or perhaps you might print out some debugging details"
   - cd src/vm;
-  - apt-get install qemu-system-i386
+  - which qemu-system-i386
+  - apt install qemu-system-i386
 
 after_script:
   - echo "After script section"
