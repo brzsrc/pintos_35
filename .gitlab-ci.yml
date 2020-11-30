@@ -10,6 +10,9 @@ before_script:
   - apt-get install -y make
   - apt-get install -y perl
   - apt-get install -y libbinutils
+  - cd src/utils
+  - PATH=$PATH:`pwd`
+  - cd ../..
   - echo "End of Before script section"
 
 after_script:
