@@ -9,6 +9,8 @@ struct frame_node {
     void *upage;
 
     struct hash_elem hash_elem;
-}
+};
 
+void frame_init();
+void* frame_alloc(enum palloc_flags pflag, void *upage);
 #endif /* vm/frame.h */
