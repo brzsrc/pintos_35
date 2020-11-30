@@ -6,15 +6,13 @@ image: busybox:latest
 
 before_script:
   - echo "Before script section"
-  - echo "For example you might run an update here or install a build dependency"
-  - echo "Or perhaps you might print out some debugging details"
-  - cd src/vm;
+  - cd src/vm
   - which qemu-system-i386
   - apt install qemu-system-i386
+  - echo "End of Before script section"
 
 after_script:
   - echo "After script section"
-  - echo "For example you might do some cleanup here"
 
 build1:
   stage: build
