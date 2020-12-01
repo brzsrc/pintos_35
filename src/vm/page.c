@@ -1,12 +1,14 @@
 #include "page.h"
 
 struct hash spmt_pt;
-void spmtpt_init() { hash_init(&spmt_pt, spmtpt_hash, spmtpt_less, NULL); }
 
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
 static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
 
+void spmtpt_init(void) { 
+    hash_init(&spmt_pt, spmtpt_hash, spmtpt_less, NULL); 
+}
 
 /* Returns a hash value for frame_node f. */
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED) {
