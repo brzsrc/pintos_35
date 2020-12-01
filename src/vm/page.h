@@ -4,8 +4,8 @@
 #include <stddef.h>
 
 #include "lib/kernel/hash.h"
-#include "off_t.h"
-#include "thread.h"
+#include "filesys/off_t.h"
+#include "threads/thread.h"
 
 /* the entry in the supplymental page table */
 struct spmt_pt_entry {
