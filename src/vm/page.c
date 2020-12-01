@@ -6,13 +6,6 @@ static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
 static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
 
-<<<<<<< HEAD
-void spmtpt_init(void) { 
-    hash_init(&spmt_pt, spmtpt_hash, spmtpt_less, NULL); 
-}
-
-=======
->>>>>>> 918793ff4fd51ba6510b5036984a6517a92d7692
 /* Returns a hash value for frame_node f. */
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED) {
   const struct spmt_pt_entry *spmtpt =
