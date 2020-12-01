@@ -21,6 +21,7 @@
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "vm/frame.h"
 
 #define WORD_LIMIT (128)
 
@@ -532,7 +533,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
     if (kpage == NULL) {
       /* Get a new page of memory. */
-      kpage = palloc_get_page(PAL_USER);
+      // kpage = palloc_get_page(PAL_USER);
+      kpage = frame_alloc(PAL_USER, upage);
       if (kpage == NULL) {
         return false;
       }
@@ -544,12 +546,15 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
       }
     }
 
-    /* Load data into the page. */
-    if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
-      palloc_free_page(kpage);
-      return false;
-    }
-    memset(kpage + page_read_bytes, 0, page_zero_bytes);
+    /* add a pair of kpage and upage into supplymental page table */
+    spmtpt_entry_init(struct spmt_pt_entry *entry, )
+
+    // /* Load data into the page. */
+    // if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
+    //   palloc_free_page(kpage);
+    //   return false;
+    // }
+    // memset(kpage + page_read_bytes, 0, page_zero_bytes);
 
     /* Advance. */
     read_bytes -= page_read_bytes;

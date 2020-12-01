@@ -13,6 +13,8 @@
 #include <stdint.h>
 
 #include "fixed_point.h"
+#include "vm/page.h"
+
 
 /* States in a thread's life cycle. */
 enum thread_status {
@@ -125,6 +127,9 @@ struct thread {
 
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */
+
+  /* shared between thread.c, page.c and process.c */
+  struct hash spmt_pt; /* the supplymental page table the thread holds */
 };
 
 /* If false (default), use round-robin scheduler.
