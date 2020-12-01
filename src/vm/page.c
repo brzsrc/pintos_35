@@ -1,15 +1,23 @@
 #include "page.h"
 
+#include "threads/malloc.h"
+
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
 static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
 
-void spmtpt_init(struct hash *spmt_pt) { 
-    hash_init(spmt_pt, spmtpt_hash, spmtpt_less, NULL); 
+void spmtpt_init(struct hash *spmt_pt) {
+  hash_init(spmt_pt, spmtpt_hash, spmtpt_less, NULL);
 }
 
-void spmtpt_entry_init(struct spmt_pt_entry *entry, ) {
-    entry
+// Malloc
+void spmtpt_entry_init(void *upage, void *kpage,
+                       struct load_page_detail load_details) {
+  struct spmt_pt_entry *entry =
+      (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+  entry->upage = upage;
+  entry->kpage = kpage;
+  entry->load_details = load_details;
 }
 
 /* Returns a hash value for frame_node f. */
