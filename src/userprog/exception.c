@@ -93,12 +93,12 @@ static void kill(struct intr_frame *f) {
       PANIC("Kernel bug - unexpected interrupt in kernel");
 
     default:
-      /* Some other code segment?  
+      /* Some other code segment?
          Shouldn't happen.  Panic the kernel. */
-      printf ("Interrupt %#04x (%s) in unknown segment %04x\n",
-             f->vec_no, intr_name (f->vec_no), f->cs);
-      PANIC ("Kernel bug - this shouldn't be possible!");
-    }
+      printf("Interrupt %#04x (%s) in unknown segment %04x\n", f->vec_no,
+             intr_name(f->vec_no), f->cs);
+      PANIC("Kernel bug - this shouldn't be possible!");
+  }
 }
 
 /* Page fault handler.  This is a skeleton that must be filled in
