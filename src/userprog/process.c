@@ -591,7 +591,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
     upage += PGSIZE;
-    ofs += PGSIZE; /* Might be bug here */
+    current_offset += PGSIZE; /* Might be bug here */
   }
   return true;
 }
