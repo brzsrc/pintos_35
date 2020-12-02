@@ -26,6 +26,9 @@ struct spmt_pt_entry {
   struct hash_elem hash_elem;
   enum upage_status status;
 
+  block_sector_t sector;
+  struct frame_node *frame_node;
+
   void *upage;
   void *kpage;
 
