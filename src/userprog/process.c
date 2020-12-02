@@ -29,6 +29,7 @@
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 static void child_init(struct child *child);
+static bool install_page(void *upage, void *kpage, bool writable);
 
 /* Store number of arguments*/
 int argc;
@@ -258,6 +259,8 @@ void process_exit(void) {
     sema_up(&child->wait_sema);
   }
 
+  // TODO destroy the supplemental page table of a user process
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -273,10 +276,10 @@ void process_exit(void) {
     pagedir_activate(NULL);
     pagedir_destroy(pd);
   }
-  
+
   struct hash *pt = &cur->spmt_pt;
   if (pt != NULL) {
-    hash_destroy(pt, spmtpt_destroy);
+    spmtpt_free(pt);
   }
 }
 
@@ -373,9 +376,12 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
   bool success = false;
   int i;
 
-  spmtpt_init(&t->spmt_pt);
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create();
+
+  // Initialize sup page table for user process
+  spmtpt_init(&t->spmt_pt);
+
   if (t->pagedir == NULL) goto done;
   process_activate();
 
@@ -549,25 +555,31 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     //   }
     // }
 
-    /* Add a pair of kpage and upage into supplymental page table. 
+    /* Add a pair of kpage and upage into supplymental page table.
        If the upage hasn't been mapped to a kpage in the pagedir,
-       the kpage here would be null then. 
-       So upon here, if the process wants to access the data stored in this upage,
-       a page fault would occur(since this upage doesn't have any corresponding kpage yet)
+       the kpage here would be null then.
+       So upon here, if the process wants to access the data stored in this
+       upage, a page fault would occur(since this upage doesn't have any
+       corresponding kpage yet)
        ->
-       then in the page fault handler, we would find this upage in the spmt_pt 
+       then in the page fault handler, we would find this upage in the spmt_pt
        and its corresponding data needed to be loaded.
-       We then alloc one kpage to this upage(use frame_alloc), load data into that kpage(所以这里就是lazyload？？？), 
-       update 系统自带的那个page_table(就是pagedir那个) by using install_page(upage, kpage, writable) 
+       We then alloc one kpage to this upage(use frame_alloc), load data into
+       that kpage(所以这里就是lazyload？？？), update
+       系统自带的那个page_table(就是pagedir那个) by using install_page(upage,
+       kpage, writable)
        <- 这样下次process再access upage的data的时候就不会page fault了
-       目前还没想清楚，在update完pagedir后，要不要把data related to this upage从spmt_pt里面删掉
-       (感觉可能要删掉) 
-       
+       目前还没想清楚，在update完pagedir后，要不要把data related to this
+       upage从spmt_pt里面删掉 (感觉可能要删掉)
+
        */
-    struct spmt_pt_entry *entry = spmtpt_entry_init(upage, kpage, LOAD_FILE);
-    spmtpt_load_details_init(entry->load_details, file, page_read_bytes, 
-      page_zero_bytes, writable, current_offset);
-    hash_insert(&t->spmt_pt, &entry->hash_elem);
+    struct spmt_pt_entry *e;
+    e = spmtpt_entry_init(upage, IN_FILE);
+    spmtpt_load_details(e, page_read_bytes,
+                             page_zero_bytes, writable, current_offset);
+
+    // There must not be any identical entry
+    ASSERT(spmtpt_insert(&t->spmt_pt, e) == NULL);
     // /* Load data into the page. */
     // if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
     //   palloc_free_page(kpage);
@@ -579,7 +591,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
     upage += PGSIZE;
-    ofs += PGSIZE; /* Might be bug here */
+    current_offset += PGSIZE; /* Might be bug here */
   }
   return true;
 }
@@ -601,3 +613,20 @@ static bool setup_stack(void **esp) {
   return success;
 }
 
+/* Adds a mapping from user virtual address UPAGE to kernel
+   virtual address KPAGE to the page table.
+   If WRITABLE is true, the user process may modify the page;
+   otherwise, it is read-only.
+   UPAGE must not already be mapped.
+   KPAGE should probably be a page obtained from the user pool
+   with palloc_get_page().
+   Returns true on success, false if UPAGE is already mapped or
+   if memory allocation fails. */
+static bool install_page(void *upage, void *kpage, bool writable) {
+  struct thread *t = thread_current();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  return (pagedir_get_page(t->pagedir, upage) == NULL &&
+          pagedir_set_page(t->pagedir, upage, kpage, writable));
+}

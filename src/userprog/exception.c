@@ -2,22 +2,30 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
-#include "vm/page.h"
-#include "vm/frame.h"
+#include "filesys/directory.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "userprog/gdt.h"
-#include "userprog/syscall.h"
-#include "userprog/pagedir.h"
 #include "threads/vaddr.h"
-
+#include "userprog/gdt.h"
+#include "userprog/pagedir.h"
+#include "userprog/syscall.h"
+#include "vm/frame.h"
+#include "vm/page.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
 static void kill(struct intr_frame *);
 static void page_fault(struct intr_frame *);
+
+// load the page for a thread
+static bool load_page(struct load_page_detail *d, struct thread *t,
+                      uint8_t *upage);
+static bool install_page(void *upage, void *kpage, bool writable);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -143,25 +151,29 @@ static void page_fault(struct intr_frame *f) {
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-  
-  struct thread *t = thread_current();
-  void* fault_page = (void*) pg_round_down(fault_addr);
-  struct spmt_pt_entry *entry = spmtpt_lookup_entry(t, fault_page);
 
-  /* If we cannot find the entry needed, we panic the kernel */
-  if(entry == NULL) {
-     printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
-         not_present ? "not present" : "rights violation",
-         write ? "writing" : "reading", user ? "user" : "kernel");
-     if (user) {
-       syscall_exit_helper(-1);
-     } else {
-       kill(f);
-     }
-  } 
-  else if (entry->status == IN_FILE) {
-     if(!spmtpt_load_file(entry)) {
-        syscall_exit_helper(-1);
-     }
+  // This should give the correct t right?
+  struct thread *t = thread_current();
+
+  /* To implement virtual memory, delete the rest of the function
+     body, and replace it with code that brings in the page to
+     which fault_addr refers. */
+  if (user) {
+    if (not_present) {
+      struct spmt_pt_entry *e;
+
+      // obtain the page the fault addr belongs to
+      uint8_t *upage = pg_round_down(fault_addr);
+      e = spmtpt_find(t, upage);
+      ASSERT(e != NULL);
+      ASSERT(spmtpt_load_page(e, t));   
+    } else {
+      printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
+             not_present ? "not present" : "rights violation",
+             write ? "writing" : "reading", user ? "user" : "kernel");
+      syscall_exit_helper(-1);
+    }
+  } else {
+    kill(f);
   }
 }
