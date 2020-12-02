@@ -8,7 +8,8 @@
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
-#include "swap.h"
+#include "page.h"
+// #include "swap.h"
 
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
 static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
@@ -58,23 +59,24 @@ bool spmtpt_load_page(struct spmt_pt_entry *e, struct thread *t) {
   if (e->status == IN_FILE) {
     return load_from_file(e, t);
   }
-  else if (e->status == IN_SWAP)
-  {
-    return load_from_swap(e, t);
-  }
+  // else if (e->status == IN_SWAP)
+  // {
+  //   return load_from_swap(e, t);
+  // }
+  return true;
 }
 
-static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t) {
-  swap_out(e);
-}
+// static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t) {
+//   swap_out(e);
+// }
 
 static bool load_from_file(struct spmt_pt_entry *e, struct thread *t) {
   /* Check if virtual page already allocated */
   uint8_t *kpage = pagedir_get_page(t->pagedir, e->upage);
   if (kpage == NULL) {
     // TODO change palloc to frame alloc
-    kpage = palloc_get_page(PAL_USER);
-    // kpage = frame_alloc(PAL_USER, e, t);
+    // kpage = palloc_get_page(PAL_USER);
+    kpage = frame_alloc(PAL_USER, e, t);
     if (kpage == NULL) {
       return false;
     }

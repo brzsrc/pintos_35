@@ -12,7 +12,7 @@
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "page.h"
-#include "swap.h"
+// #include "swap.h"
 
 struct hash frame_table;
 
@@ -24,21 +24,23 @@ void frame_init(void) { hash_init(&frame_table, frame_hash, frame_less, NULL); }
 
 void *frame_alloc(enum palloc_flags pflag, void *upage, struct thread *t) {
   void *kpage = palloc_get_page(PAL_USER | pflag);
-  if (kpage == NULL) {
-    // use eviction algorithm to get a kpage to be evicted in the frame table
-    //write the algorithm in func frame_evict();
-    //...
-    struct frame_node *evicted_node = frame_evict();
-    struct spmt_pt_entry *evicted_entry = spmtpt_find(evicted_node->t, evicted_node->upage); 
-    if(!evicted_entry->is_dirty || !evicted_entry->writable) {
-        evicted_entry->status = IN_FILE;
-    } else
-    {
-        evicted_entry->status = IN_SWAP;
-        swap_in(evicted_entry);
-    }
-    //frame_delete_node: delete the evicted_node in frame
-  }
+//   if (kpage == NULL) {
+//     // use eviction algorithm to get a kpage to be evicted in the frame table
+//     //write the algorithm in func frame_evict();
+//     //...
+//     // struct frame_node *evicted_node = frame_evict();
+//     struct frame_node *evicted_node;
+//     struct spmt_pt_entry *evicted_entry = spmtpt_find(evicted_node->t, evicted_node->upage); 
+//     if(!evicted_entry->is_dirty || !evicted_entry->writable) {
+//         evicted_entry->status = IN_FILE;
+//     } else
+//     {
+//         evicted_entry->status = IN_SWAP;
+//         // swap_in(evicted_entry);
+//     }
+//     //frame_delete_node: delete the evicted_node in frame
+//     //padedir delete the evicted_node
+//   }
 
   struct frame_node *new_node =
       (struct frame_node *)malloc(sizeof(struct frame_node));
@@ -49,7 +51,7 @@ void *frame_alloc(enum palloc_flags pflag, void *upage, struct thread *t) {
   return kpage;
 }
 
-//struct frame_node *frame_evict() {
+// struct frame_node *frame_evict() {
 //     // somehow get the evicted kpage;
 
 // }

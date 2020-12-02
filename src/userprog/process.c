@@ -538,8 +538,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
     /* Check if virtual page already allocated */
     struct thread *t = thread_current();
-    uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
-
+    // uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
     // if (kpage == NULL) {
     //   /* Get a new page of memory. */
     //   // kpage = palloc_get_page(PAL_USER);

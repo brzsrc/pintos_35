@@ -22,11 +22,6 @@ static long long page_fault_cnt;
 static void kill(struct intr_frame *);
 static void page_fault(struct intr_frame *);
 
-// load the page for a thread
-static bool load_page(struct load_page_detail *d, struct thread *t,
-                      uint8_t *upage);
-static bool install_page(void *upage, void *kpage, bool writable);
-
 /* Registers handlers for interrupts that can be caused by user
    programs.
 

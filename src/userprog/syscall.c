@@ -291,14 +291,13 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
   }
 
   struct opened_file *opened_file;
-
-  lock_acquire(&filesys_lock);
+  
   opened_file = get_opened_file(fd);
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
+  lock_acquire(&filesys_lock);
   off_t off = file_write(opened_file->file, buffer, size);
   lock_release(&filesys_lock);
   return off;
