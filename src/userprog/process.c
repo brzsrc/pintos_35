@@ -22,12 +22,14 @@
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 #define WORD_LIMIT (128)
 
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 static void child_init(struct child *child);
+static bool install_page(void *upage, void *kpage, bool writable);
 
 /* Store number of arguments*/
 int argc;
@@ -274,6 +276,11 @@ void process_exit(void) {
     pagedir_activate(NULL);
     pagedir_destroy(pd);
   }
+
+  struct hash *pt = &cur->spmt_pt;
+  if (pt != NULL) {
+    spmtpt_free(pt);
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -464,10 +471,6 @@ done:
   return success;
 }
 
-/* load() helpers. */
-
-static bool install_page(void *upage, void *kpage, bool writable);
-
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool validate_segment(const struct Elf32_Phdr *phdr, struct file *file) {
@@ -537,33 +540,46 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     struct thread *t = thread_current();
     uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
 
-    if (kpage == NULL) {
-      /* Get a new page of memory. */
-      // kpage = palloc_get_page(PAL_USER);
-      // kpage = frame_alloc(PAL_USER, upage);
-      // if (kpage == NULL) {
-      //   return false;
-      // }
+    // if (kpage == NULL) {
+    //   /* Get a new page of memory. */
+    //   // kpage = palloc_get_page(PAL_USER);
+    //   kpage = frame_alloc(PAL_USER, upage);
+    //   if (kpage == NULL) {
+    //     return false;
+    //   }
 
-      // /* Add the page to the process's address space. */
-      // if (!install_page(upage, kpage, writable)) {
-      //   palloc_free_page(kpage);
-      //   return false;
-      // }
-    }
+    //   /* Add the page to the process's address space. */
+    //   if (!install_page(upage, kpage, writable)) {
+    //     palloc_free_page(kpage);
+    //     return false;
+    //   }
+    // }
 
-    /* add this upage and load details into supplemental page table */
+    /* Add a pair of kpage and upage into supplymental page table.
+       If the upage hasn't been mapped to a kpage in the pagedir,
+       the kpage here would be null then.
+       So upon here, if the process wants to access the data stored in this
+       upage, a page fault would occur(since this upage doesn't have any
+       corresponding kpage yet)
+       ->
+       then in the page fault handler, we would find this upage in the spmt_pt
+       and its corresponding data needed to be loaded.
+       We then alloc one kpage to this upage(use frame_alloc), load data into
+       that kpage(所以这里就是lazyload？？？), update
+       系统自带的那个page_table(就是pagedir那个) by using install_page(upage,
+       kpage, writable)
+       <- 这样下次process再access upage的data的时候就不会page fault了
+       目前还没想清楚，在update完pagedir后，要不要把data related to this
+       upage从spmt_pt里面删掉 (感觉可能要删掉)
+
+       */
     struct spmt_pt_entry *e;
-    struct load_page_detail details;
-    details.current_offset = current_offset;
-    details.page_read_bytes = page_read_bytes;
-    details.page_zero_bytes = page_zero_bytes;
-    details.writable = writable;
-    e = spmtpt_entry_init(upage, kpage, details);
+    e = spmtpt_entry_init(upage, kpage, LOAD_FILE);
+    spmtpt_load_details_init(e->load_details, file, page_read_bytes,
+                             page_zero_bytes, writable, current_offset);
 
     // There must not be any identical entry
     ASSERT(spmtpt_insert(&t->spmt_pt, e) == NULL);
-
     // /* Load data into the page. */
     // if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
     //   palloc_free_page(kpage);

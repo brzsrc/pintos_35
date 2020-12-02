@@ -14,6 +14,8 @@
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
 #include "vm/frame.h"
+#include "vm/page.h"
+
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -161,14 +163,15 @@ static void page_fault(struct intr_frame *f) {
          write ? "writing" : "reading", user ? "user" : "kernel");
   if (user) {
     if (not_present) {
-      struct hash *spmtpt = &t->spmt_pt;
       struct spmt_pt_entry *e;
 
       // obtain the page the fault addr belongs to
       uint8_t *upage = pg_round_down(fault_addr);
-      e = spmtpt_find(spmtpt, upage);
+      e = spmtpt_find(t, upage);
       ASSERT(e != NULL);
-      ASSERT(load_page(&e->load_details, t, upage));
+      if (e->status == LOAD_FILE) {
+        ASSERT(load_page(e->load_details, t, upage));
+      }
     } else {
       syscall_exit_helper(-1);
     }
