@@ -159,7 +159,7 @@ static void page_fault(struct intr_frame *f) {
        kill(f);
      }
   } 
-  else if (entry->status == LOAD_FILE) {
+  else if (entry->status == IN_FILE) {
      if(!spmtpt_load_file(entry)) {
         syscall_exit_helper(-1);
      }

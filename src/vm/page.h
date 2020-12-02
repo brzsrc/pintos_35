@@ -9,8 +9,9 @@
 
 enum upage_status {
     ALL_ZERO,
-    LOAD_FILE,
-    SWAP
+    IN_FILE,
+    IN_SWAP,
+    IN_FRAME
 };
 
 struct load_page_detail {
