@@ -10,7 +10,7 @@
 #include "threads/thread.h"
 
 struct load_page_detail {
-  struct file *file;
+  //struct file *file; //no need, it is already stored in t->file
   size_t page_read_bytes;
   size_t page_zero_bytes;
   bool writable;
@@ -21,6 +21,7 @@ struct load_page_detail {
 struct spmt_pt_entry {
   struct hash_elem hash_elem;
 
+  // key: The requested page
   void *upage;
   void *kpage;
 
@@ -29,6 +30,13 @@ struct spmt_pt_entry {
 };
 
 void spmtpt_init(struct hash *spmt_pt);
-void spmtpt_entry_init(void *upage, void *kpage,
-                       struct load_page_detail load_details);
+// Malloc an entry and return a pointer to it
+struct spmt_pt_entry *spmtpt_entry_init(void *upage, void *kpage,
+                                        struct load_page_detail load_details);
+
+struct hash_elem *spmtpt_insert(struct hash *hash, struct spmt_pt_entry *entry);
+struct spmt_pt_entry *spmtpt_find(struct hash *spmtpt, uint8_t *upage);
+
+// To be called in process exit
+void spmtpt_free(struct hash *spmt_pt);
 #endif

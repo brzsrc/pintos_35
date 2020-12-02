@@ -2,17 +2,28 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
+#include "filesys/directory.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "userprog/gdt.h"
+#include "userprog/pagedir.h"
 #include "userprog/syscall.h"
-
+#include "vm/frame.h"
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
 static void kill(struct intr_frame *);
 static void page_fault(struct intr_frame *);
+
+// load the page for a thread
+static bool load_page(struct load_page_detail *d, struct thread *t,
+                      uint8_t *upage);
+static bool install_page(void *upage, void *kpage, bool writable);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -139,6 +150,9 @@ static void page_fault(struct intr_frame *f) {
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  // This should give the correct t right?
+  struct thread *t = thread_current();
+
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
@@ -146,8 +160,70 @@ static void page_fault(struct intr_frame *f) {
          not_present ? "not present" : "rights violation",
          write ? "writing" : "reading", user ? "user" : "kernel");
   if (user) {
-    syscall_exit_helper(-1);
+    if (not_present) {
+      struct hash *spmtpt = &t->spmt_pt;
+      struct spmt_pt_entry *e;
+
+      // obtain the page the fault addr belongs to
+      uint8_t *upage = pg_round_down(fault_addr);
+      e = spmtpt_find(spmtpt, upage);
+      ASSERT(e != NULL);
+      ASSERT(load_page(&e->load_details, t, upage));
+    } else {
+      syscall_exit_helper(-1);
+    }
   } else {
     kill(f);
   }
+}
+
+static bool load_page(struct load_page_detail *d, struct thread *t,
+                      uint8_t *upage) {
+  /* Check if virtual page already allocated */
+  uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
+  if (kpage == NULL) {
+    // TODO change palloc to frame alloc
+    kpage = palloc_get_page(PAL_USER);
+    // kpage = frame_alloc(PAL_USER, upage);
+    if (kpage == NULL) {
+      return false;
+    }
+
+    /* Add the page to the process's address space. */
+    if (!install_page(upage, kpage, d->writable)) {
+      palloc_free_page(kpage);
+      return false;
+    }
+
+    /* Load data into the page. */
+    file_seek(t->file, d->current_offset);
+    if (file_read(t->file, kpage, d->page_read_bytes) !=
+        (int)d->page_read_bytes) {
+      palloc_free_page(kpage);
+      return false;
+    }
+    memset(kpage + d->page_read_bytes, 0, d->page_zero_bytes);
+    return true;
+  } else {
+    // Something went wrong
+    return false;
+  }
+}
+
+/* Adds a mapping from user virtual address UPAGE to kernel
+   virtual address KPAGE to the page table.
+   If WRITABLE is true, the user process may modify the page;
+   otherwise, it is read-only.
+   UPAGE must not already be mapped.
+   KPAGE should probably be a page obtained from the user pool
+   with palloc_get_page().
+   Returns true on success, false if UPAGE is already mapped or
+   if memory allocation fails. */
+static bool install_page(void *upage, void *kpage, bool writable) {
+  struct thread *t = thread_current();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  return (pagedir_get_page(t->pagedir, upage) == NULL &&
+          pagedir_set_page(t->pagedir, upage, kpage, writable));
 }

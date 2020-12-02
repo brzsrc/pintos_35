@@ -552,14 +552,17 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
       // }
     }
 
-    /* add a pair of kpage and upage into supplymental page table */
+    /* add this upage and load details into supplemental page table */
+    struct spmt_pt_entry *e;
     struct load_page_detail details;
     details.current_offset = current_offset;
-    details.file = file;
     details.page_read_bytes = page_read_bytes;
     details.page_zero_bytes = page_zero_bytes;
     details.writable = writable;
-    spmtpt_entry_init(upage, kpage, details);
+    e = spmtpt_entry_init(upage, kpage, details);
+
+    // There must not be any identical entry
+    ASSERT(spmtpt_insert(&t->spmt_pt, e) == NULL);
 
     // /* Load data into the page. */
     // if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
