@@ -575,7 +575,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
        */
     struct spmt_pt_entry *e;
     e = spmtpt_entry_init(upage, kpage, LOAD_FILE);
-    spmtpt_load_details_init(e->load_details, file, page_read_bytes,
+    spmtpt_load_details_init(e->load_details, page_read_bytes,
                              page_zero_bytes, writable, current_offset);
 
     // There must not be any identical entry

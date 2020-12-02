@@ -38,7 +38,7 @@ struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage);
 struct spmt_pt_entry *spmtpt_entry_init(void *upage, void *kpage,
                                         enum upage_status status);
 void spmtpt_load_details_init(struct load_page_detail *details,
-                              struct file *file, size_t page_read_bytes,
+                              size_t page_read_bytes,
                               size_t page_zero_bytes, bool writable,
                               off_t current_offset);
 // To be called in process exit
