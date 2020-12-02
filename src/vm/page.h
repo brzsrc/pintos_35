@@ -6,6 +6,7 @@
 #include "threads/thread.h"
 #include "filesys/off_t.h"
 #include "lib/kernel/hash.h"
+#include "devices/block.h"
 
 enum upage_status {
     ALL_ZERO,
