@@ -257,6 +257,8 @@ void process_exit(void) {
     sema_up(&child->wait_sema);
   }
 
+  // TODO destroy the supplemental page table of a user process
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -369,6 +371,10 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create();
+
+  // Initialize sup page table for user process
+  spmtpt_init(&t->spmt_pt);
+
   if (t->pagedir == NULL) goto done;
   process_activate();
 
@@ -534,16 +540,16 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     if (kpage == NULL) {
       /* Get a new page of memory. */
       // kpage = palloc_get_page(PAL_USER);
-      kpage = frame_alloc(PAL_USER, upage);
-      if (kpage == NULL) {
-        return false;
-      }
+      // kpage = frame_alloc(PAL_USER, upage);
+      // if (kpage == NULL) {
+      //   return false;
+      // }
 
-      /* Add the page to the process's address space. */
-      if (!install_page(upage, kpage, writable)) {
-        palloc_free_page(kpage);
-        return false;
-      }
+      // /* Add the page to the process's address space. */
+      // if (!install_page(upage, kpage, writable)) {
+      //   palloc_free_page(kpage);
+      //   return false;
+      // }
     }
 
     /* add a pair of kpage and upage into supplymental page table */
