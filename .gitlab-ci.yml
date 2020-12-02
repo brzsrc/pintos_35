@@ -31,5 +31,7 @@ test1:
     - make clean
     - make
     - cd build
-    - make tests/userprog/args-none.output
-    - perl -I../.. ../../tests/userprog/args-none.ck tests/userprog/args-none tests/userprog/args-none.result
+    - make check
+    - make grade
+#    - make tests/userprog/args-none.output
+#    - perl -I../.. ../../tests/userprog/args-none.ck tests/userprog/args-none tests/userprog/args-none.result
