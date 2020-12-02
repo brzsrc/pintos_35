@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include "frame.h"
+
+#include "vm/frame.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"

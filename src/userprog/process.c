@@ -22,6 +22,7 @@
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 #define WORD_LIMIT (128)
 
@@ -272,6 +273,11 @@ void process_exit(void) {
     pagedir_activate(NULL);
     pagedir_destroy(pd);
   }
+  
+  struct hash *pt = &cur->spmt_pt;
+  if (pt != NULL) {
+    hash_destroy(pt, spmtpt_destroy);
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -367,6 +373,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
   bool success = false;
   int i;
 
+  spmtpt_init(&t->spmt_pt);
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create();
   if (t->pagedir == NULL) goto done;
@@ -458,10 +465,6 @@ done:
   return success;
 }
 
-/* load() helpers. */
-
-static bool install_page(void *upage, void *kpage, bool writable);
-
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool validate_segment(const struct Elf32_Phdr *phdr, struct file *file) {
@@ -531,30 +534,40 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     struct thread *t = thread_current();
     uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
 
-    if (kpage == NULL) {
-      /* Get a new page of memory. */
-      // kpage = palloc_get_page(PAL_USER);
-      kpage = frame_alloc(PAL_USER, upage);
-      if (kpage == NULL) {
-        return false;
-      }
+    // if (kpage == NULL) {
+    //   /* Get a new page of memory. */
+    //   // kpage = palloc_get_page(PAL_USER);
+    //   kpage = frame_alloc(PAL_USER, upage);
+    //   if (kpage == NULL) {
+    //     return false;
+    //   }
 
-      /* Add the page to the process's address space. */
-      if (!install_page(upage, kpage, writable)) {
-        palloc_free_page(kpage);
-        return false;
-      }
-    }
+    //   /* Add the page to the process's address space. */
+    //   if (!install_page(upage, kpage, writable)) {
+    //     palloc_free_page(kpage);
+    //     return false;
+    //   }
+    // }
 
-    /* add a pair of kpage and upage into supplymental page table */
-    struct load_page_detail details;
-    details.current_offset = current_offset;
-    details.file = file;
-    details.page_read_bytes = page_read_bytes;
-    details.page_zero_bytes = page_zero_bytes;
-    details.writable = writable;
-    spmtpt_entry_init(upage, kpage, details);
-
+    /* Add a pair of kpage and upage into supplymental page table. 
+       If the upage hasn't been mapped to a kpage in the pagedir,
+       the kpage here would be null then. 
+       So upon here, if the process wants to access the data stored in this upage,
+       a page fault would occur(since this upage doesn't have any corresponding kpage yet)
+       ->
+       then in the page fault handler, we would find this upage in the spmt_pt 
+       and its corresponding data needed to be loaded.
+       We then alloc one kpage to this upage(use frame_alloc), load data into that kpage(所以这里就是lazyload？？？), 
+       update 系统自带的那个page_table(就是pagedir那个) by using install_page(upage, kpage, writable) 
+       <- 这样下次process再access upage的data的时候就不会page fault了
+       目前还没想清楚，在update完pagedir后，要不要把data related to this upage从spmt_pt里面删掉
+       (感觉可能要删掉) 
+       
+       */
+    struct spmt_pt_entry *entry = spmtpt_entry_init(upage, kpage, LOAD_FILE);
+    spmtpt_load_details_init(entry->load_details, file, page_read_bytes, 
+      page_zero_bytes, writable, current_offset);
+    hash_insert(&t->spmt_pt, &entry->hash_elem);
     // /* Load data into the page. */
     // if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
     //   palloc_free_page(kpage);
@@ -588,20 +601,3 @@ static bool setup_stack(void **esp) {
   return success;
 }
 
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool install_page(void *upage, void *kpage, bool writable) {
-  struct thread *t = thread_current();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page(t->pagedir, upage) == NULL &&
-          pagedir_set_page(t->pagedir, upage, kpage, writable));
-}

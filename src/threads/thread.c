@@ -14,6 +14,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "vm/page.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -543,7 +544,6 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   list_init(&t->locks);
   list_init(&t->opened_files);
   list_init(&t->childs);
-  spmtpt_init(&t->spmt_pt);
 
   old_level = intr_disable();
   list_insert_ordered(&all_list, &t->allelem, &thread_compare_priority, NULL);
