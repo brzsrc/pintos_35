@@ -367,10 +367,22 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   check_valid_pointer(arg2);
   int fd = *(int *)arg1;
   void *addr = *(char **)arg2;
-                                  }
+
+  mapid_t mid;
+
+  struct opened_file *opened_file = get_opened_file(fd);
+  struct file *file = opened_file->file;
+  if (!opened_file || !file || file_length(file) == 0 || addr == 0
+                   || fd == STDIN_FILENO || fd == STDOUT_FILENO) {
+    return MAP_FAILED;
+  }
+
+  return mid;
+}
 
 static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
                                   void *arg3 UNUSED) {
   check_valid_pointer(arg1); 
-  mapid_t mapping = *(int *)arg1;                             
+  mapid_t mapping = *(int *)arg1;  
+                             
                                   }
