@@ -67,8 +67,7 @@ void syscall_init(void) {
 
 static void check_valid_pointer(const void *pointer) {
   struct thread *t = thread_current();
-  if (!pointer || !is_user_vaddr(pointer) ||
-      pagedir_get_page(t->pagedir, pointer) == NULL) {
+  if (!pointer || !is_user_vaddr(pointer)) {
     syscall_exit_helper(-1);
   }
 }
@@ -128,7 +127,7 @@ static unsigned int syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   shutdown_power_off();
   NOT_REACHED();
-  return 0; 
+  return 0;
 }
 
 static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
@@ -136,7 +135,7 @@ static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
   check_valid_pointer(arg1);
   int exit_status = *(int *)arg1;
   syscall_exit_helper(exit_status);
-  return 0; 
+  return 0;
 }
 
 void syscall_exit_helper(int exit_status) {
@@ -158,9 +157,8 @@ static unsigned int syscall_exec(void *arg1, void *arg2 UNUSED,
   lock_acquire(&filesys_lock);
   tid_t tid = process_execute(cmd_line);
   lock_release(&filesys_lock);
-  return tid; 
+  return tid;
 }
-
 
 static unsigned int syscall_wait(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
@@ -180,7 +178,7 @@ static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
   lock_acquire(&filesys_lock);
   bool result = filesys_create(file, initial_size);
   lock_release(&filesys_lock);
-  return result; 
+  return result;
 }
 
 static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
@@ -228,7 +226,7 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   }
   list_push_back(opened_files, &opened_file->elem);
 
-  return opened_file->fd; 
+  return opened_file->fd;
 }
 
 static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
@@ -261,13 +259,14 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
     for (unsigned int i = 0; i < size; i++) {
       *(uint8_t *)(buffer + i) = input_getc();
     }
-    return size; 
+    return size;
   }
 
-  for (void *upage = pg_round_down (buffer); upage < buffer + size; upage += PGSIZE) {
+  for (void *upage = pg_round_down(buffer); upage < buffer + size;
+       upage += PGSIZE) {
     struct thread *t = thread_current();
     struct spmt_pt_entry *entry = spmtpt_find(t, upage);
-    spmtpt_load_page (entry);
+    spmtpt_load_page(entry);
   }
 
   struct opened_file *opened_file = get_opened_file(fd);
@@ -297,16 +296,17 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
   }
 
   struct opened_file *opened_file;
-  
+
   opened_file = get_opened_file(fd);
   if (!opened_file || !opened_file->file) {
     return -1;
-  } 
+  }
 
-  for (void *upage = pg_round_down (buffer); upage < buffer + size; upage += PGSIZE) {
+  for (void *upage = pg_round_down(buffer); upage < buffer + size;
+       upage += PGSIZE) {
     struct thread *t = thread_current();
     struct spmt_pt_entry *entry = spmtpt_find(t, upage);
-    spmtpt_load_page (entry);
+    spmtpt_load_page(entry);
   }
 
   lock_acquire(&filesys_lock);
@@ -332,7 +332,7 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
   } else {
     file_seek(opened_file->file, position);
     lock_release(&filesys_lock);
-    return 0; 
+    return 0;
   }
 
   lock_acquire(&filesys_lock);
@@ -357,7 +357,7 @@ static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
   } else {
     result = file_tell(opened_file->file);
     lock_release(&filesys_lock);
-    return result; 
+    return result;
   }
 
   lock_acquire(&filesys_lock);

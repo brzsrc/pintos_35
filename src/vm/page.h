@@ -8,6 +8,8 @@
 #include "threads/thread.h"
 #include "devices/block.h"
 
+extern struct lock filesys_lock;
+
 enum upage_status {
     ALL_ZERO,
     IN_FILE,
