@@ -537,14 +537,15 @@ static bool load_segment(off_t ofs, uint8_t *upage,
 
     /* Check if virtual page already allocated */
     struct thread *t = thread_current();
-    struct spmt_pt_entry *e = spmtpt_entry_init(upage, IN_FILE, t);
-    spmtpt_load_details(e, page_read_bytes,
-                             page_zero_bytes, writable, current_offset);
-
+    struct spmt_pt_entry *e 
+      = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+    
     // There must not be any identical entry
-    if (spmtpt_insert(&t->spmt_pt, e) != NULL) {
+    if(!spmtpt_entry_init(e, upage, IN_FILE, t)) {
       return false;
     }
+    spmtpt_load_details(e, page_read_bytes,
+                             page_zero_bytes, writable, current_offset);
 
     /* Advance. */
     read_bytes -= page_read_bytes;
@@ -560,13 +561,23 @@ static bool load_segment(off_t ofs, uint8_t *upage,
    user virtual memory. */
 static bool setup_stack(void **esp) {
   uint8_t *kpage;
+  uint8_t *upage = ((uint8_t *)PHYS_BASE) - PGSIZE;
+  struct thread *t = thread_current();
   bool success = false;
 
-  kpage = frame_alloc(PAL_USER | PAL_ZERO, PHYS_BASE - PGSIZE, thread_current());
+  kpage = frame_alloc(PAL_USER | PAL_ZERO, upage, t);
   if (kpage != NULL) {
-    success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
-    if (success)
+    success = install_page(upage, kpage, true);
+    if (success) {
       *esp = PHYS_BASE;
+      struct spmt_pt_entry *e 
+        = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
+      // There must not be any identical entry
+      if(!spmtpt_entry_init(e, upage, IN_FRAME, t)) {
+        return false;
+      }
+    }
     else
       palloc_free_page(kpage);
   }

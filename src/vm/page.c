@@ -26,17 +26,19 @@ void spmtpt_init(struct hash *spmt_pt) {
 }
 
 // Malloc. Since we assert non null, returned is always a valid pointer
-struct spmt_pt_entry *spmtpt_entry_init(void *upage, enum upage_status status,
-                                        struct thread *t) {
-  struct spmt_pt_entry *entry =
-      (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-
+bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, 
+                       enum upage_status status, struct thread *t) {
   ASSERT(entry != NULL);
 
   entry->upage = upage;
   entry->status = status;
   entry->t = t;
-  return entry;
+  entry->is_dirty = false;
+
+  if (spmtpt_insert(&t->spmt_pt, entry) != NULL) {
+      return false;
+  }
+  return true;
 }
 
 void spmtpt_load_details(struct spmt_pt_entry *e, size_t page_read_bytes,
@@ -68,20 +70,6 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   // {
   //   return load_from_swap(e, t);
   // }
-  return false;
-}
-
-bool spmtpt_zero_page_init(void *upage, struct thread *t) {
-  struct spmt_pt_entry *entry =
-      (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-
-  ASSERT(entry != NULL);
-  entry->status = ALL_ZERO;
-  entry->is_dirty = false;
-  entry->upage = upage;
-  entry->t = t;
-
-  if (hash_insert(&t->spmt_pt, &entry->hash_elem) == NULL) return true;
   return false;
 }
 

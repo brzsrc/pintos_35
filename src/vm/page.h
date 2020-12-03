@@ -40,8 +40,8 @@ struct hash_elem *spmtpt_insert(struct hash *hash, struct spmt_pt_entry *entry);
 
 struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage);
 
-struct spmt_pt_entry *spmtpt_entry_init(void *upage,
-                                        enum upage_status status, struct thread *t);
+bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, 
+                       enum upage_status status, struct thread *t);
 void spmtpt_load_details(struct spmt_pt_entry *e,
                               size_t page_read_bytes,
                               size_t page_zero_bytes, bool writable,
@@ -49,5 +49,4 @@ void spmtpt_load_details(struct spmt_pt_entry *e,
 // To be called in process exit
 void spmtpt_free(struct hash *spmt_pt);
 bool spmtpt_load_page(struct spmt_pt_entry *e);
-bool spmtpt_zero_page_init(void *upage, struct thread *t);
 #endif

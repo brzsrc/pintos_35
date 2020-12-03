@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "filesys/directory.h"
 #include "filesys/file.h"
@@ -15,6 +16,8 @@
 #include "userprog/syscall.h"
 #include "vm/frame.h"
 #include "vm/page.h"
+
+#define MAX_STACK_SIZE 0x800000
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -159,9 +162,16 @@ static void page_fault(struct intr_frame *f) {
       uint8_t *upage = pg_round_down(fault_addr);
       struct spmt_pt_entry *e = spmtpt_find(t, upage);
 
-      if (e == NULL) {
-        spmtpt_zero_page_init(upage, t);
-        return;
+      bool is_stack_frame = (f->esp <= fault_addr || fault_addr == f->esp - 4 ||
+                             fault_addr == f->esp - 32);
+      bool is_stack_addr =
+          (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
+
+      if (is_stack_frame && is_stack_addr) {
+        if (e == NULL) {
+          e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+          spmtpt_entry_init(e, upage, ALL_ZERO, t);
+        }
       }
       if (spmtpt_load_page(e)) {
         return;
