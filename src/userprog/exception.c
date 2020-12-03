@@ -160,11 +160,16 @@ static void page_fault(struct intr_frame *f) {
       struct spmt_pt_entry *e = spmtpt_find(t, upage);
 
       if (e == NULL) {
-        spmtpt_zero_page_init(upage, t);
+        // invalid upage addr
+        syscall_exit_helper(-1);
+        // spmtpt_zero_page_init(upage, t);
         return;
       }
+
       if (spmtpt_load_page(e)) {
         return;
+      } else {
+         NOT_REACHED();
       }
     } else {
       printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,

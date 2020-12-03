@@ -48,6 +48,7 @@ void spmtpt_load_details(struct spmt_pt_entry *e, size_t page_read_bytes,
   e->writable = writable;
 }
 
+/*Find and return the entry if t->upage is valid addr. Otherwise return NULL*/
 struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage) {
   struct spmt_pt_entry entry;
   struct hash_elem *elem;
