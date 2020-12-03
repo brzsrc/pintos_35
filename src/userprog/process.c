@@ -244,7 +244,7 @@ void process_exit(void) {
   if (cur->file && cur->is_user_process) {
     file_allow_write(cur->file);
     lock_acquire(&exec_lock);
-    file_close(cur->file);
+    file_sync_close(cur->file);
     lock_release(&exec_lock);
   }
 
@@ -360,7 +360,7 @@ struct Elf32_Phdr {
 
 static bool setup_stack(void **esp);
 static bool validate_segment(const struct Elf32_Phdr *, struct file *);
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
+static bool load_segment(off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable);
 
@@ -442,7 +442,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
             read_bytes = 0;
             zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
           }
-          if (!load_segment(file, file_page, (void *)mem_page, read_bytes,
+          if (!load_segment(file_page, (void *)mem_page, read_bytes,
                             zero_bytes, writable))
             goto done;
         } else
@@ -520,7 +520,7 @@ static bool validate_segment(const struct Elf32_Phdr *phdr, struct file *file) {
 
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
+static bool load_segment(off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable) {
   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
@@ -562,7 +562,7 @@ static bool setup_stack(void **esp) {
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  kpage = frame_alloc(PAL_USER | PAL_ZERO, PHYS_BASE - PGSIZE, thread_current());
   if (kpage != NULL) {
     success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
     if (success)
