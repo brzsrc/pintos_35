@@ -75,7 +75,7 @@ static void check_valid_pointer(const void *pointer) {
 /* Check arg Non null */
 static void check_valid_arg(const void *arg, unsigned int size) {
   const void *temp = arg;
-  for (unsigned i = 0; i <= size; i++) {
+  for (unsigned i = 0; i <= size; i += PGSIZE) {
     check_valid_pointer(temp);
     temp++;
   }
@@ -176,7 +176,7 @@ static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
   check_valid_arg(file, initial_size);
 
   lock_acquire(&filesys_lock);
-  bool result = filesys_create(file, initial_size);
+  bool result = filesys_sync_create(file, initial_size);
   lock_release(&filesys_lock);
   return result;
 }
@@ -188,7 +188,7 @@ static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
   check_valid_arg(file, 0);
 
   lock_acquire(&filesys_lock);
-  bool result = filesys_remove(file);
+  bool result = filesys_sync_remove(file);
   lock_release(&filesys_lock);
   return result;
 }
@@ -201,7 +201,7 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   check_valid_arg(file_name, 0);
 
   lock_acquire(&filesys_lock);
-  struct file *file = filesys_open(file_name);
+  struct file *file = filesys_sync_open(file_name);
   if (!file) {
     lock_release(&filesys_lock);
     return -1;
