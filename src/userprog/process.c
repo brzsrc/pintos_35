@@ -218,11 +218,11 @@ void process_exit(void) {
   while (!list_empty(opened_files)) {
     struct list_elem *e = list_pop_front(opened_files);
     struct opened_file *opened_file = list_entry(e, struct opened_file, elem);
-    lock_acquire(&filesys_lock);
+  
     if (opened_file->file) {
-      file_close(opened_file->file);
+      file_sync_close(opened_file->file);
     }
-    lock_release(&filesys_lock);
+
     free(opened_file);
   }
 
@@ -243,9 +243,9 @@ void process_exit(void) {
   // /* Release the executable file */
   if (cur->file && cur->is_user_process) {
     file_allow_write(cur->file);
-    lock_acquire(&filesys_lock);
+    lock_acquire(&exec_lock);
     file_close(cur->file);
-    lock_release(&filesys_lock);
+    lock_release(&exec_lock);
   }
 
   /* update current thread's child and

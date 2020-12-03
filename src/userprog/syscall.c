@@ -21,7 +21,8 @@
 // Function pointers to syscall functions
 typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
 
-struct lock filesys_lock;
+//Only one exec at a time
+struct lock exec_lock;
 
 static void check_valid_pointer(const void *pointer);
 static int get_syscall_number(struct intr_frame *f);
@@ -45,7 +46,7 @@ static unsigned int syscall_close(void *, void *, void *);
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 
 void syscall_init(void) {
-  lock_init(&filesys_lock);
+  lock_init(&exec_lock);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 
   // Initialize the array such that handlers can be
@@ -154,9 +155,9 @@ static unsigned int syscall_exec(void *arg1, void *arg2 UNUSED,
   const char *cmd_line = *(const char **)arg1;
   check_valid_arg(cmd_line, 0);
 
-  lock_acquire(&filesys_lock);
+  lock_acquire(&exec_lock);
   tid_t tid = process_execute(cmd_line);
-  lock_release(&filesys_lock);
+  lock_release(&exec_lock);
   return tid;
 }
 
@@ -175,9 +176,7 @@ static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
   unsigned int initial_size = *(unsigned int *)arg2;
   check_valid_arg(file, initial_size);
 
-  lock_acquire(&filesys_lock);
   bool result = filesys_sync_create(file, initial_size);
-  lock_release(&filesys_lock);
   return result;
 }
 
@@ -187,9 +186,7 @@ static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
   const char *file = *(char **)arg1;
   check_valid_arg(file, 0);
 
-  lock_acquire(&filesys_lock);
   bool result = filesys_sync_remove(file);
-  lock_release(&filesys_lock);
   return result;
 }
 
@@ -200,20 +197,16 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   const char *file_name = *(char **)arg1;
   check_valid_arg(file_name, 0);
 
-  lock_acquire(&filesys_lock);
   struct file *file = filesys_sync_open(file_name);
   if (!file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
   struct opened_file *opened_file = malloc(sizeof(struct opened_file));
   if (!opened_file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
-  lock_release(&filesys_lock);
 
   opened_file->file = file;
   struct list *opened_files = &thread_current()->opened_files;
@@ -239,9 +232,8 @@ static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
   if (!opened_file) {
     return -1;
   }
-  lock_acquire(&filesys_lock);
+
   off_t result = file_sync_length(opened_file->file);
-  lock_release(&filesys_lock);
 
   return result;
 }
@@ -274,9 +266,7 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
     return -1;
   }
 
-  lock_acquire(&filesys_lock);
   off_t result = file_read(opened_file->file, buffer, size);
-  lock_release(&filesys_lock);
 
   return result;
 }
@@ -309,9 +299,7 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
     spmtpt_load_page(entry);
   }
 
-  lock_acquire(&filesys_lock);
   off_t off = file_sync_write(opened_file->file, buffer, size);
-  lock_release(&filesys_lock);
   return off;
 }
 
@@ -328,9 +316,7 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
   if (!opened_file || !opened_file->file) {
     return 0;
   } else {
-    lock_acquire(&filesys_lock);
     file_seek(opened_file->file, position);
-    lock_release(&filesys_lock);
     return 0;
   }
 }
@@ -348,9 +334,7 @@ static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
   if (!opened_file || !opened_file->file) {
     return 0;
   } else {
-    lock_acquire(&filesys_lock);
     result = file_sync_tell(opened_file->file);
-    lock_release(&filesys_lock);
     return result;
   }
 }
@@ -367,9 +351,7 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
     return -1;
   }
 
-  lock_acquire(&filesys_lock);
   file_sync_close(opened_file->file);
-  lock_release(&filesys_lock);
 
   list_remove(&opened_file->elem);
   free(opened_file);
