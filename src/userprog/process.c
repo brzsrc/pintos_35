@@ -543,7 +543,9 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                              page_zero_bytes, writable, current_offset);
 
     // There must not be any identical entry
-    ASSERT(spmtpt_insert(&t->spmt_pt, e) == NULL);
+    if (spmtpt_insert(&t->spmt_pt, e) != NULL) {
+      return false;
+    }
 
     /* Advance. */
     read_bytes -= page_read_bytes;

@@ -167,12 +167,12 @@ static void page_fault(struct intr_frame *f) {
          spmtpt_zero_page_init(upage, t);
          return;
       }
-      if(spmtpt_load_page(e)) {
-         return;
-      }
-      // if(load_segment(t->file, e->current_offset, upage, e->page_read_bytes, e->page_zero_bytes, e->writable)) {
+      // if(spmtpt_load_page(e)) {
       //    return;
       // }
+      if(load_segment(t->file, e->current_offset, upage, e->page_read_bytes, e->page_zero_bytes, e->writable)) {
+         return;
+      }
     } else {
          printf ("Page fault at %p: %s error %s page in %s context.\n",
                   fault_addr,
