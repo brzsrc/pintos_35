@@ -16,8 +16,8 @@ static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
 static void spmtpt_entry_free(struct spmt_pt_entry *spmtpt_entry);
 static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t);
-static bool load_from_file(struct spmt_pt_entry *e, struct thread *t);
-static bool install_page(void *upage, void *kpage, bool writable);
+static bool load_from_file(struct spmt_pt_entry *e);
+static bool install_page(struct spmt_pt_entry *e, void *kpage);
 
 void spmtpt_init(struct hash *spmt_pt) {
   hash_init(spmt_pt, spmtpt_hash, spmtpt_less, NULL);
@@ -25,7 +25,7 @@ void spmtpt_init(struct hash *spmt_pt) {
 
 // Malloc. Since we assert non null, returned is always a valid pointer
 struct spmt_pt_entry *spmtpt_entry_init(void *upage,
-                                        enum upage_status status) {
+                                        enum upage_status status, struct thread *t) {
   struct spmt_pt_entry *entry =
       (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
@@ -33,6 +33,7 @@ struct spmt_pt_entry *spmtpt_entry_init(void *upage,
 
   entry->upage = upage;
   entry->status = status;
+  entry->t = t;
   return entry;
 }
 
@@ -55,41 +56,59 @@ struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage) {
                       : NULL;
 }
 
-bool spmtpt_load_page(struct spmt_pt_entry *e, struct thread *t) {
+bool spmtpt_load_page(struct spmt_pt_entry *e) {
+  if(!e) {
+    return false;
+  }
   if (e->status == IN_FILE) {
-    return load_from_file(e, t);
+    return load_from_file(e);
   }
   // else if (e->status == IN_SWAP)
   // {
   //   return load_from_swap(e, t);
   // }
-  return true;
+  return false;
+}
+
+bool spmtpt_zero_page_init(void *upage, struct thread *t) {
+  struct spmt_pt_entry *entry =
+      (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
+  ASSERT(entry != NULL);
+  entry->status = ALL_ZERO;
+  entry->is_dirty = false;
+  entry->upage = upage;
+  entry->t = t;
+
+  if (hash_insert (&t->spmt_pt, &entry->hash_elem) == NULL)
+    return true;
+  return false;
 }
 
 // static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t) {
 //   swap_out(e);
 // }
 
-static bool load_from_file(struct spmt_pt_entry *e, struct thread *t) {
+static bool load_from_file(struct spmt_pt_entry *e) {
   /* Check if virtual page already allocated */
-  uint8_t *kpage = pagedir_get_page(t->pagedir, e->upage);
+  uint8_t *kpage = pagedir_get_page(e->t->pagedir, e->upage);
   if (kpage == NULL) {
     // TODO change palloc to frame alloc
     // kpage = palloc_get_page(PAL_USER);
-    kpage = frame_alloc(PAL_USER, e, t);
+    kpage = frame_alloc(PAL_USER, e, e->t);
     if (kpage == NULL) {
       return false;
     }
 
     /* Add the page to the process's address space. */
-    if (!install_page(e->upage, kpage, e->writable)) {
+    if (!install_page(e, kpage)) {
       palloc_free_page(kpage);
       return false;
     }
 
     /* Load data into the page. */
-    file_seek(t->file, e->current_offset);
-    if (file_read(t->file, kpage, e->page_read_bytes) !=
+    file_seek(e->t->file, e->current_offset);
+    if (file_read(e->t->file, kpage, e->page_read_bytes) !=
         (int)e->page_read_bytes) {
       palloc_free_page(kpage);
       return false;
@@ -146,11 +165,11 @@ static void spmtpt_entry_free(struct spmt_pt_entry *spmtpt_entry) {
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-static bool install_page(void *upage, void *kpage, bool writable) {
-  struct thread *t = thread_current();
+static bool install_page(struct spmt_pt_entry *e, void *kpage) {
+  
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page(t->pagedir, upage) == NULL &&
-          pagedir_set_page(t->pagedir, upage, kpage, writable));
+  return (pagedir_get_page(e->t->pagedir, e->upage) == NULL &&
+          pagedir_set_page(e->t->pagedir, e->upage, kpage, e->writable));
 }

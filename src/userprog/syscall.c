@@ -16,6 +16,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
+#include "vm/page.h"
 
 // Function pointers to syscall functions
 typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
@@ -263,13 +264,18 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
     return size; 
   }
 
-  lock_acquire(&filesys_lock);
+  for (void *upage = pg_round_down (buffer); upage < buffer + size; upage += PGSIZE) {
+    struct thread *t = thread_current();
+    struct spmt_pt_entry *entry = spmtpt_find(t, upage);
+    spmtpt_load_page (entry);
+  }
+
   struct opened_file *opened_file = get_opened_file(fd);
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
+  lock_acquire(&filesys_lock);
   off_t result = file_read(opened_file->file, buffer, size);
   lock_release(&filesys_lock);
 
@@ -295,6 +301,12 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
   opened_file = get_opened_file(fd);
   if (!opened_file || !opened_file->file) {
     return -1;
+  } 
+
+  for (void *upage = pg_round_down (buffer); upage < buffer + size; upage += PGSIZE) {
+    struct thread *t = thread_current();
+    struct spmt_pt_entry *entry = spmtpt_find(t, upage);
+    spmtpt_load_page (entry);
   }
 
   lock_acquire(&filesys_lock);

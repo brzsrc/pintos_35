@@ -538,53 +538,12 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
     /* Check if virtual page already allocated */
     struct thread *t = thread_current();
-    // uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
-    // if (kpage == NULL) {
-    //   /* Get a new page of memory. */
-    //   // kpage = palloc_get_page(PAL_USER);
-    //   kpage = frame_alloc(PAL_USER, upage);
-    //   if (kpage == NULL) {
-    //     return false;
-    //   }
-
-    //   /* Add the page to the process's address space. */
-    //   if (!install_page(upage, kpage, writable)) {
-    //     palloc_free_page(kpage);
-    //     return false;
-    //   }
-    // }
-
-    /* Add a pair of kpage and upage into supplymental page table.
-       If the upage hasn't been mapped to a kpage in the pagedir,
-       the kpage here would be null then.
-       So upon here, if the process wants to access the data stored in this
-       upage, a page fault would occur(since this upage doesn't have any
-       corresponding kpage yet)
-       ->
-       then in the page fault handler, we would find this upage in the spmt_pt
-       and its corresponding data needed to be loaded.
-       We then alloc one kpage to this upage(use frame_alloc), load data into
-       that kpage(所以这里就是lazyload？？？), update
-       系统自带的那个page_table(就是pagedir那个) by using install_page(upage,
-       kpage, writable)
-       <- 这样下次process再access upage的data的时候就不会page fault了
-       目前还没想清楚，在update完pagedir后，要不要把data related to this
-       upage从spmt_pt里面删掉 (感觉可能要删掉)
-
-       */
-    struct spmt_pt_entry *e;
-    e = spmtpt_entry_init(upage, IN_FILE);
+    struct spmt_pt_entry *e = spmtpt_entry_init(upage, IN_FILE, t);
     spmtpt_load_details(e, page_read_bytes,
                              page_zero_bytes, writable, current_offset);
 
     // There must not be any identical entry
     ASSERT(spmtpt_insert(&t->spmt_pt, e) == NULL);
-    // /* Load data into the page. */
-    // if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
-    //   palloc_free_page(kpage);
-    //   return false;
-    // }
-    // memset(kpage + page_read_bytes, 0, page_zero_bytes);
 
     /* Advance. */
     read_bytes -= page_read_bytes;
@@ -594,6 +553,56 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
   }
   return true;
 }
+
+// static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
+//                          uint32_t read_bytes, uint32_t zero_bytes,
+//                          bool writable) {
+//   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
+//   ASSERT(pg_ofs(upage) == 0);
+//   ASSERT(ofs % PGSIZE == 0);
+
+//   file_seek(file, ofs);
+//   while (read_bytes > 0 || zero_bytes > 0) {
+//     /* Calculate how to fill this page.
+//        We will read PAGE_READ_BYTES bytes from FILE
+//        and zero the final PAGE_ZERO_BYTES bytes. */
+//     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+//     size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+//     /* Check if virtual page already allocated */
+//     struct thread *t = thread_current();
+//     uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
+
+//     if (kpage == NULL) {
+//       /* Get a new page of memory. */
+//       // kpage = palloc_get_page(PAL_USER);
+//       kpage = frame_alloc(PAL_USER, upage, t);
+//       if (kpage == NULL) {
+//         return false;
+//       }
+
+//       /* Add the page to the process's address space. */
+//       if (!install_page(upage, kpage, writable)) {
+//         palloc_free_page(kpage);
+//         return false;
+//       }
+//     }
+
+//     /* Load data into the page. */
+//    if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
+//       palloc_free_page(kpage);
+//       return false;
+//     }
+//     memset(kpage + page_read_bytes, 0, page_zero_bytes);
+
+//     /* Advance. */
+//     read_bytes -= page_read_bytes;
+//     zero_bytes -= page_zero_bytes;
+//     upage += PGSIZE;
+//   }
+//   return true;
+// }
+
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
