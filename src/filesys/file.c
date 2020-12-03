@@ -4,6 +4,7 @@
 
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 /* An open file. */
 struct file {
@@ -44,6 +45,13 @@ void file_close(struct file *file) {
   }
 }
 
+/* Closes FILE. */
+void file_sync_close(struct file *file) {
+  lock_acquire(&filesystem_lock);
+  file_close(file);
+  lock_release(&filesystem_lock);
+}
+
 /* Returns the inode encapsulated by FILE. */
 struct inode *file_get_inode(struct file *file) {
   return file->inode;
@@ -58,6 +66,18 @@ off_t file_read(struct file *file, void *buffer, off_t size) {
   off_t bytes_read = inode_read_at(file->inode, buffer, size, file->pos);
   file->pos += bytes_read;
   return bytes_read;
+}
+
+/* Reads SIZE bytes from FILE into BUFFER,
+   starting at the file's current position.
+   Returns the number of bytes actually read,
+   which may be less than SIZE if end of file is reached.
+   Advances FILE's position by the number of bytes read. */
+off_t file_sync_read(struct file *file, void *buffer, off_t size) {
+  lock_acquire(&filesystem_lock);
+  off_t result = file_read(file, buffer, size);
+  lock_release(&filesystem_lock);
+  return result;
 }
 
 /* Reads SIZE bytes from FILE into BUFFER,
@@ -81,6 +101,20 @@ off_t file_write(struct file *file, const void *buffer, off_t size) {
   off_t bytes_written = inode_write_at(file->inode, buffer, size, file->pos);
   file->pos += bytes_written;
   return bytes_written;
+}
+
+/* Writes SIZE bytes from BUFFER into FILE,
+   starting at the file's current position.
+   Returns the number of bytes actually written,
+   which may be less than SIZE if end of file is reached.
+   (Normally we'd grow the file in that case, but file growth is
+   not yet implemented.)
+   Advances FILE's position by the number of bytes read. */
+off_t file_sync_write(struct file *file, const void *buffer, off_t size) {
+  lock_acquire(&filesystem_lock);
+  off_t result = file_write(file, buffer, size);
+  lock_release(&filesystem_lock);
+  return result;
 }
 
 /* Writes SIZE bytes from BUFFER into FILE,
@@ -122,6 +156,14 @@ off_t file_length(struct file *file) {
   return inode_length(file->inode);
 }
 
+/* Returns the size of FILE in bytes. */
+off_t file_sync_length(struct file *file) {
+  lock_acquire(&filesystem_lock);
+  off_t result = file_length(file);
+  lock_release(&filesystem_lock);
+  return result;
+}
+
 /* Sets the current position in FILE to NEW_POS bytes from the
    start of the file. */
 void file_seek(struct file *file, off_t new_pos) {
@@ -130,9 +172,26 @@ void file_seek(struct file *file, off_t new_pos) {
   file->pos = new_pos;
 }
 
+/* Sets the current position in FILE to NEW_POS bytes from the
+   start of the file. */
+void file_sync_seek(struct file *file, off_t new_pos) {
+  lock_acquire(&filesystem_lock);
+  file_seek(file, new_pos);
+  lock_release(&filesystem_lock);
+}
+
 /* Returns the current position in FILE as a byte offset from the
    start of the file. */
 off_t file_tell(struct file *file) {
   ASSERT(file != NULL);
   return file->pos;
+}
+
+/* Returns the current position in FILE as a byte offset from the
+   start of the file. */
+off_t file_sync_tell(struct file *file) {
+  lock_acquire(&filesystem_lock);
+  off_t result = file_tell(file);
+  lock_release(&filesystem_lock);
+  return result;
 }

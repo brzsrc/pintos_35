@@ -240,7 +240,7 @@ static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
     return -1;
   }
   lock_acquire(&filesys_lock);
-  off_t result = file_length(opened_file->file);
+  off_t result = file_sync_length(opened_file->file);
   lock_release(&filesys_lock);
 
   return result;
@@ -310,7 +310,7 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
   }
 
   lock_acquire(&filesys_lock);
-  off_t off = file_write(opened_file->file, buffer, size);
+  off_t off = file_sync_write(opened_file->file, buffer, size);
   lock_release(&filesys_lock);
   return off;
 }
@@ -323,21 +323,16 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
 
   struct opened_file *opened_file;
 
-  lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
 
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return 0;
   } else {
+    lock_acquire(&filesys_lock);
     file_seek(opened_file->file, position);
     lock_release(&filesys_lock);
     return 0;
   }
-
-  lock_acquire(&filesys_lock);
-  file_seek(opened_file->file, position);
-  lock_release(&filesys_lock);
 }
 
 static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
@@ -348,22 +343,16 @@ static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
   struct opened_file *opened_file;
   unsigned int result;
 
-  lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
 
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return 0;
   } else {
-    result = file_tell(opened_file->file);
+    lock_acquire(&filesys_lock);
+    result = file_sync_tell(opened_file->file);
     lock_release(&filesys_lock);
     return result;
   }
-
-  lock_acquire(&filesys_lock);
-  off_t off = file_tell(opened_file->file);
-  lock_release(&filesys_lock);
-  return off;
 }
 
 static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
@@ -379,8 +368,9 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
   }
 
   lock_acquire(&filesys_lock);
-  file_close(opened_file->file);
+  file_sync_close(opened_file->file);
   lock_release(&filesys_lock);
+
   list_remove(&opened_file->elem);
   free(opened_file);
   return 0;

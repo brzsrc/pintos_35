@@ -1,7 +1,10 @@
 #ifndef FILESYS_FILE_H
 #define FILESYS_FILE_H
 
+#include "filesys/filesys.h"
 #include "filesys/off_t.h"
+
+extern struct lock filesystem_lock;
 
 struct inode;
 
@@ -9,11 +12,12 @@ struct inode;
 struct file *file_open(struct inode *);
 struct file *file_reopen(struct file *);
 void file_close(struct file *);
+void file_sync_close(struct file *);
 struct inode *file_get_inode(struct file *);
 
 /* Reading and writing. */
 off_t file_read(struct file *, void *, off_t);
-// off_t file_sync_read (struct file *, void *, off_t);
+off_t file_sync_read(struct file *, void *, off_t);
 
 off_t file_read_at(struct file *, void *, off_t size, off_t start);
 off_t file_write(struct file *, const void *, off_t);
@@ -26,7 +30,11 @@ void file_allow_write(struct file *);
 
 /* File position. */
 void file_seek(struct file *, off_t);
+void file_sync_seek(struct file *, off_t);
+
 off_t file_tell(struct file *);
+off_t file_sync_tell(struct file *);
 off_t file_length(struct file *);
+off_t file_sync_length(struct file *);
 
 #endif /* filesys/file.h */
