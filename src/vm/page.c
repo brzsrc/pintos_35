@@ -108,16 +108,13 @@ static bool load_from_file(struct spmt_pt_entry *e) {
     }
 
     /* Load data into the page. */
-    lock_acquire(&filesys_lock);
-    file_seek(e->t->file, e->current_offset);
-    if (file_read(e->t->file, kpage, e->page_read_bytes) !=
+    file_sync_seek(e->t->file, e->current_offset);
+    if (file_sync_read(e->t->file, kpage, e->page_read_bytes) !=
         (int)e->page_read_bytes) {
-      lock_release(&filesys_lock);
       NOT_REACHED();
       palloc_free_page(kpage);
       return false;
     }
-    lock_release(&filesys_lock);
     memset(kpage + e->page_read_bytes, 0, e->page_zero_bytes);
     e->status = IN_FRAME;
     return true;
