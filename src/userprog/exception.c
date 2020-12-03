@@ -2,13 +2,14 @@
 
 #include <inttypes.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
@@ -150,42 +151,47 @@ static void page_fault(struct intr_frame *f) {
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  // This should give the correct t right?
   struct thread *t = thread_current();
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-  if (user) {
-    if (not_present) {
-      // obtain the page the fault addr belongs to
-      uint8_t *upage = pg_round_down(fault_addr);
-      struct spmt_pt_entry *e = spmtpt_find(t, upage);
+  if (not_present) {
+    // obtain the page the fault addr belongs to
+    uint8_t *fault_page = pg_round_down(fault_addr);
+    struct spmt_pt_entry *e = spmtpt_find(t, fault_page);
+    
+    /* If it's user accessed, then we can get the esp in intr_frame
+       otherwise if it's kernel accessed, in syscall, then we must get
+       the esp from t->esp */
+    void *esp = user ? f->esp : t->esp;
 
-      bool is_stack_frame = (f->esp <= fault_addr || fault_addr == f->esp - 4 ||
-                             fault_addr == f->esp - 32);
-      bool is_stack_addr =
-          (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
+    /* Here is used to check if we need to grow the stack
+       其实可以删掉，删掉的话就是只要e == NULL， 就load one ALL-ZERO page
+       这样可以pass tests，但是可能再往后写会有问题*/
+    bool is_stack_frame = (fault_addr >= esp || fault_addr == f->esp - 4 ||
+                           fault_addr == f->esp - 32);
+    bool is_stack_addr =
+        (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
 
-      if (is_stack_frame && is_stack_addr) {
-        if (e == NULL) {
-          e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-          spmtpt_entry_init(e, upage, ALL_ZERO, t);
-        }
+    if (is_stack_frame && is_stack_addr) {
+      if (e == NULL) {
+        e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+        spmtpt_entry_init(e, fault_page, true, ALL_ZERO, t);
       }
-      if (spmtpt_load_page(e)) {
-        return;
-      }
-    } else {
-      printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
-             not_present ? "not present" : "rights violation",
-             write ? "writing" : "reading", user ? "user" : "kernel");
-      syscall_exit_helper(-1);
+    }
+
+    if (spmtpt_load_page(e)) {
+      return;
     }
   }
 
   printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
          not_present ? "not present" : "rights violation",
          write ? "writing" : "reading", user ? "user" : "kernel");
+
+  if (user) {
+    syscall_exit_helper(-1);
+  }
   kill(f);
 }

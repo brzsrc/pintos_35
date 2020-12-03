@@ -26,7 +26,7 @@ void spmtpt_init(struct hash *spmt_pt) {
 }
 
 // Malloc. Since we assert non null, returned is always a valid pointer
-bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, 
+bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
                        enum upage_status status, struct thread *t) {
   ASSERT(entry != NULL);
 
@@ -34,6 +34,7 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage,
   entry->status = status;
   entry->t = t;
   entry->is_dirty = false;
+  entry->writable = writable;
 
   if (spmtpt_insert(&t->spmt_pt, entry) != NULL) {
       return false;
@@ -42,12 +43,11 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage,
 }
 
 void spmtpt_load_details(struct spmt_pt_entry *e, size_t page_read_bytes,
-                         size_t page_zero_bytes, bool writable,
+                         size_t page_zero_bytes,
                          off_t current_offset) {
   e->current_offset = current_offset;
   e->page_read_bytes = page_read_bytes;
   e->page_zero_bytes = page_zero_bytes;
-  e->writable = writable;
 }
 
 struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage) {
@@ -70,6 +70,24 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   // {
   //   return load_from_swap(e, t);
   // }
+  else if (e->status == ALL_ZERO)
+  {
+    void *kpage = frame_alloc(PAL_ZERO, e, e->t);
+    if (kpage == NULL) {
+      return false;
+    }
+
+    /* Add the page to the process's address space. */
+    if (!install_page(e, kpage)) {
+      NOT_REACHED();
+      palloc_free_page(kpage);
+      return false;
+    }
+    memset (kpage, 0, PGSIZE);
+    e->status = IN_FRAME;
+    return true;
+  }
+  
   return false;
 }
 
@@ -81,8 +99,6 @@ static bool load_from_file(struct spmt_pt_entry *e) {
   /* Check if virtual page already allocated */
   uint8_t *kpage = pagedir_get_page(e->t->pagedir, e->upage);
   if (kpage == NULL) {
-    // TODO change palloc to frame alloc
-    // kpage = palloc_get_page(PAL_USER);
     kpage = frame_alloc(PAL_USER, e, e->t);
     if (kpage == NULL) {
       return false;
@@ -103,6 +119,7 @@ static bool load_from_file(struct spmt_pt_entry *e) {
       palloc_free_page(kpage);
       return false;
     }
+
     memset(kpage + e->page_read_bytes, 0, e->page_zero_bytes);
     e->status = IN_FRAME;
     return true;

@@ -112,7 +112,8 @@ static struct opened_file *get_opened_file(int fd) {
 
 static void syscall_handler(struct intr_frame *f) {
   int sys_call_no = get_syscall_number(f);
-
+  
+  thread_current()->esp = f->esp;
   void *arg1 = f->esp + 4;
   void *arg2 = f->esp + 8;
   void *arg3 = f->esp + 12;

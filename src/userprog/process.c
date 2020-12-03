@@ -541,11 +541,11 @@ static bool load_segment(off_t ofs, uint8_t *upage,
       = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
     
     // There must not be any identical entry
-    if(!spmtpt_entry_init(e, upage, IN_FILE, t)) {
+    if(!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
       return false;
     }
     spmtpt_load_details(e, page_read_bytes,
-                             page_zero_bytes, writable, current_offset);
+                             page_zero_bytes, current_offset);
 
     /* Advance. */
     read_bytes -= page_read_bytes;
@@ -574,7 +574,7 @@ static bool setup_stack(void **esp) {
         = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
       // There must not be any identical entry
-      if(!spmtpt_entry_init(e, upage, IN_FRAME, t)) {
+      if(!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
         return false;
       }
     }
