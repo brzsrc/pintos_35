@@ -218,11 +218,11 @@ void process_exit(void) {
   while (!list_empty(opened_files)) {
     struct list_elem *e = list_pop_front(opened_files);
     struct opened_file *opened_file = list_entry(e, struct opened_file, elem);
-    lock_acquire(&filesys_lock);
+  
     if (opened_file->file) {
-      file_close(opened_file->file);
+      file_sync_close(opened_file->file);
     }
-    lock_release(&filesys_lock);
+
     free(opened_file);
   }
 
@@ -243,9 +243,9 @@ void process_exit(void) {
   // /* Release the executable file */
   if (cur->file && cur->is_user_process) {
     file_allow_write(cur->file);
-    lock_acquire(&filesys_lock);
+    lock_acquire(&exec_lock);
     file_close(cur->file);
-    lock_release(&filesys_lock);
+    lock_release(&exec_lock);
   }
 
   /* update current thread's child and
@@ -386,14 +386,14 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
   process_activate();
 
   /* Open executable file. */
-  file = filesys_open(file_name);
+  file = filesys_sync_open(file_name);
   if (file == NULL) {
     printf("load: %s: open failed\n", file_name);
     goto done;
   }
 
   /* Read and verify executable header. */
-  if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
+  if (file_sync_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
       memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 ||
       ehdr.e_machine != 3 || ehdr.e_version != 1 ||
       ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024) {
@@ -406,10 +406,10 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
   for (i = 0; i < ehdr.e_phnum; i++) {
     struct Elf32_Phdr phdr;
 
-    if (file_ofs < 0 || file_ofs > file_length(file)) goto done;
-    file_seek(file, file_ofs);
+    if (file_ofs < 0 || file_ofs > file_sync_length(file)) goto done;
+    file_sync_seek(file, file_ofs);
 
-    if (file_read(file, &phdr, sizeof phdr) != sizeof phdr) goto done;
+    if (file_sync_read(file, &phdr, sizeof phdr) != sizeof phdr) goto done;
     file_ofs += sizeof phdr;
     switch (phdr.p_type) {
       case PT_NULL:
@@ -466,7 +466,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
 done:
   /* We arrive here whether the load is successful or not. */
   if (!file) {
-    file_close(file);
+    file_sync_close(file);
   }
   return success;
 }
@@ -478,7 +478,7 @@ static bool validate_segment(const struct Elf32_Phdr *phdr, struct file *file) {
   if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK)) return false;
 
   /* p_offset must point within FILE. */
-  if (phdr->p_offset > (Elf32_Off)file_length(file)) return false;
+  if (phdr->p_offset > (Elf32_Off)file_sync_length(file)) return false;
 
   /* p_memsz must be at least as big as p_filesz. */
   if (phdr->p_memsz < phdr->p_filesz) return false;
@@ -571,5 +571,23 @@ static bool setup_stack(void **esp) {
       palloc_free_page(kpage);
   }
   return success;
+}
+
+/* Adds a mapping from user virtual address UPAGE to kernel
+   virtual address KPAGE to the page table.
+   If WRITABLE is true, the user process may modify the page;
+   otherwise, it is read-only.
+   UPAGE must not already be mapped.
+   KPAGE should probably be a page obtained from the user pool
+   with palloc_get_page().
+   Returns true on success, false if UPAGE is already mapped or
+   if memory allocation fails. */
+static bool install_page(void *upage, void *kpage, bool writable) {
+  struct thread *t = thread_current();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  return (pagedir_get_page(t->pagedir, upage) == NULL &&
+          pagedir_set_page(t->pagedir, upage, kpage, writable));
 }
 

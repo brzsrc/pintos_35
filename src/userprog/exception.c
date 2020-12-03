@@ -21,10 +21,6 @@ static long long page_fault_cnt;
 
 static void kill(struct intr_frame *);
 static void page_fault(struct intr_frame *);
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable);
-static bool install_page(void *upage, void *kpage, bool writable);                         
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -157,82 +153,29 @@ static void page_fault(struct intr_frame *f) {
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-   if (user) {
+  if (user) {
     if (not_present) {
       // obtain the page the fault addr belongs to
       uint8_t *upage = pg_round_down(fault_addr);
       struct spmt_pt_entry *e = spmtpt_find(t, upage);
 
-      if(e == NULL) {
-         spmtpt_zero_page_init(upage, t);
-         return;
+      if (e == NULL) {
+        spmtpt_zero_page_init(upage, t);
+        return;
       }
-      if(spmtpt_load_page(e)) {
-         return;
+      if (spmtpt_load_page(e)) {
+        return;
       }
     } else {
-         printf ("Page fault at %p: %s error %s page in %s context.\n",
-                  fault_addr,
-                  not_present ? "not present" : "rights violation",
-                  write ? "writing" : "reading",
-                  user ? "user" : "kernel");
-         syscall_exit_helper(-1);
+      printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
+             not_present ? "not present" : "rights violation",
+             write ? "writing" : "reading", user ? "user" : "kernel");
+      syscall_exit_helper(-1);
     }
-   }
-
-   printf ("Page fault at %p: %s error %s page in %s context.\n",
-            fault_addr,
-            not_present ? "not present" : "rights violation",
-            write ? "writing" : "reading",
-            user ? "user" : "kernel");
-   kill(f);
-}
-
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable) {
-  ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
-  ASSERT(pg_ofs(upage) == 0);
-  ASSERT(ofs % PGSIZE == 0);
-
-  file_seek(file, ofs);
-  while (read_bytes > 0 || zero_bytes > 0) {
-    /* Calculate how to fill this page.
-       We will read PAGE_READ_BYTES bytes from FILE
-       and zero the final PAGE_ZERO_BYTES bytes. */
-    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-    size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
-    /* Check if virtual page already allocated */
-    struct thread *t = thread_current();
-    uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
-
-    if (kpage == NULL) {
-      /* Get a new page of memory. */
-      // kpage = palloc_get_page(PAL_USER);
-      kpage = frame_alloc(PAL_USER, upage, t);
-      if (kpage == NULL) {
-        return false;
-      }
-
-      /* Add the page to the process's address space. */
-      if (!install_page(upage, kpage, writable)) {
-        palloc_free_page(kpage);
-        return false;
-      }
-    }
-
-    /* Load data into the page. */
-   if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
-      palloc_free_page(kpage);
-      return false;
-    }
-    memset(kpage + page_read_bytes, 0, page_zero_bytes);
-
-    /* Advance. */
-    read_bytes -= page_read_bytes;
-    zero_bytes -= page_zero_bytes;
-    upage += PGSIZE;
   }
-  return true;
+
+  printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
+         not_present ? "not present" : "rights violation",
+         write ? "writing" : "reading", user ? "user" : "kernel");
+  kill(f);
 }

@@ -3,12 +3,14 @@
 #include <string.h>
 
 #include "filesys/file.h"
+#include "page.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "vm/frame.h"
-#include "page.h"
+
 // #include "swap.h"
 
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
@@ -24,8 +26,8 @@ void spmtpt_init(struct hash *spmt_pt) {
 }
 
 // Malloc. Since we assert non null, returned is always a valid pointer
-struct spmt_pt_entry *spmtpt_entry_init(void *upage,
-                                        enum upage_status status, struct thread *t) {
+struct spmt_pt_entry *spmtpt_entry_init(void *upage, enum upage_status status,
+                                        struct thread *t) {
   struct spmt_pt_entry *entry =
       (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
@@ -37,10 +39,9 @@ struct spmt_pt_entry *spmtpt_entry_init(void *upage,
   return entry;
 }
 
-void spmtpt_load_details(struct spmt_pt_entry *e,
-                              size_t page_read_bytes,
-                              size_t page_zero_bytes, bool writable,
-                              off_t current_offset) {
+void spmtpt_load_details(struct spmt_pt_entry *e, size_t page_read_bytes,
+                         size_t page_zero_bytes, bool writable,
+                         off_t current_offset) {
   e->current_offset = current_offset;
   e->page_read_bytes = page_read_bytes;
   e->page_zero_bytes = page_zero_bytes;
@@ -57,7 +58,7 @@ struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage) {
 }
 
 bool spmtpt_load_page(struct spmt_pt_entry *e) {
-  if(!e) {
+  if (!e) {
     return false;
   }
   if (e->status == IN_FILE) {
@@ -80,8 +81,7 @@ bool spmtpt_zero_page_init(void *upage, struct thread *t) {
   entry->upage = upage;
   entry->t = t;
 
-  if (hash_insert (&t->spmt_pt, &entry->hash_elem) == NULL)
-    return true;
+  if (hash_insert(&t->spmt_pt, &entry->hash_elem) == NULL) return true;
   return false;
 }
 
@@ -102,14 +102,16 @@ static bool load_from_file(struct spmt_pt_entry *e) {
 
     /* Add the page to the process's address space. */
     if (!install_page(e, kpage)) {
+      NOT_REACHED();
       palloc_free_page(kpage);
       return false;
     }
 
     /* Load data into the page. */
-    file_seek(e->t->file, e->current_offset);
-    if (file_read(e->t->file, kpage, e->page_read_bytes) !=
+    file_sync_seek(e->t->file, e->current_offset);
+    if (file_sync_read(e->t->file, kpage, e->page_read_bytes) !=
         (int)e->page_read_bytes) {
+      NOT_REACHED();
       palloc_free_page(kpage);
       return false;
     }
@@ -118,6 +120,7 @@ static bool load_from_file(struct spmt_pt_entry *e) {
     return true;
   } else {
     // Something went wrong
+    NOT_REACHED();
     return false;
   }
 }
@@ -166,8 +169,6 @@ static void spmtpt_entry_free(struct spmt_pt_entry *spmtpt_entry) {
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
 static bool install_page(struct spmt_pt_entry *e, void *kpage) {
-  
-
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   return (pagedir_get_page(e->t->pagedir, e->upage) == NULL &&

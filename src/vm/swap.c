@@ -28,8 +28,9 @@ swap_init(void) {
 
     if(swap_bitmap == NULL) {
         PANIC("Error - Swap bitmap cannot be created.");
-        lock_init(&swap_lock);
     }
+
+    lock_init(&swap_lock);
 }
 
 /* Swap in spmtpt_entry. */
