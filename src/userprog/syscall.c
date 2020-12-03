@@ -21,7 +21,7 @@
 // Function pointers to syscall functions
 typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
 
-//Only one exec at a time
+// Only one exec at a time
 struct lock exec_lock;
 
 static void check_valid_pointer(const void *pointer);
@@ -44,6 +44,8 @@ static unsigned int syscall_seek(void *, void *, void *);
 static unsigned int syscall_tell(void *, void *, void *);
 static unsigned int syscall_close(void *, void *, void *);
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
+static int get_user(const uint8_t *uaddr);
+static bool put_user(uint8_t *udst, uint8_t byte);
 
 void syscall_init(void) {
   lock_init(&exec_lock);
@@ -66,9 +68,28 @@ void syscall_init(void) {
   syscall_functions[SYS_CLOSE] = syscall_close;
 }
 
+/* Reads a byte at user virtual address UADDR.
+UADDR must be below PHYS_BASE.
+Returns the byte value if successful, -1 if a segfault occurred. */
+static int get_user(const uint8_t *uaddr) {
+  int result;
+  asm("movl $1f, %0; movzbl %1, %0; 1:" : "=&a"(result) : "m"(*uaddr));
+  return result;
+}
+/* Writes BYTE to user address UDST.
+UDST must be below PHYS_BASE.
+Returns true if successful, false if a segfault occurred. */
+static bool put_user(uint8_t *udst, uint8_t byte) {
+  int error_code;
+  asm("movl $1f, %0; movb %b2, %1; 1:"
+      : "=&a"(error_code), "=m"(*udst)
+      : "q"(byte));
+  return error_code != -1;
+}
+
 static void check_valid_pointer(const void *pointer) {
   struct thread *t = thread_current();
-  if (!pointer || !is_user_vaddr(pointer)) {
+  if (!pointer || !is_user_vaddr(pointer) || get_user(pointer) == -1) {
     syscall_exit_helper(-1);
   }
 }
@@ -112,7 +133,7 @@ static struct opened_file *get_opened_file(int fd) {
 
 static void syscall_handler(struct intr_frame *f) {
   int sys_call_no = get_syscall_number(f);
-  
+
   thread_current()->esp = f->esp;
   void *arg1 = f->esp + 4;
   void *arg2 = f->esp + 8;
@@ -207,7 +228,6 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   if (!opened_file) {
     return -1;
   }
-
 
   opened_file->file = file;
   struct list *opened_files = &thread_current()->opened_files;

@@ -94,7 +94,7 @@ static void kill(struct intr_frame *f) {
       printf("%s: dying due to interrupt %#04x (%s).\n", thread_name(),
              f->vec_no, intr_name(f->vec_no));
       intr_dump_frame(f);
-      thread_exit();
+      syscall_exit_helper(-1);
 
     case SEL_KCSEG:
       /* Kernel's code segment, which indicates a kernel bug.
@@ -186,12 +186,20 @@ static void page_fault(struct intr_frame *f) {
     }
   }
 
+  /* if the page fault is not caused by stack_growth/load_page/present?, 
+     then we should kill it/exit with an error code */
+
+   // this used to handle error code
+   //when an invalid pointer causes a page fault
+   if(!user) {
+      f->eip = (void *) f->eax;
+      f->eax = 0xffffffff;
+      return;
+   }
+
+  /* for page_fault cannot be handled, kill it */ 
   printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
          not_present ? "not present" : "rights violation",
          write ? "writing" : "reading", user ? "user" : "kernel");
-
-  if (user) {
-    syscall_exit_helper(-1);
-  }
   kill(f);
 }
