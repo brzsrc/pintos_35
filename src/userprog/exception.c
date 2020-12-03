@@ -167,10 +167,7 @@ static void page_fault(struct intr_frame *f) {
          spmtpt_zero_page_init(upage, t);
          return;
       }
-      // if(spmtpt_load_page(e)) {
-      //    return;
-      // }
-      if(load_segment(t->file, e->current_offset, upage, e->page_read_bytes, e->page_zero_bytes, e->writable)) {
+      if(spmtpt_load_page(e)) {
          return;
       }
     } else {
@@ -238,13 +235,4 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     upage += PGSIZE;
   }
   return true;
-}
-
-static bool install_page(void *upage, void *kpage, bool writable) {
-  struct thread *t = thread_current();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page(t->pagedir, upage) == NULL &&
-          pagedir_set_page(t->pagedir, upage, kpage, writable));
 }
