@@ -43,6 +43,8 @@ static unsigned int syscall_write(void *, void *, void *);
 static unsigned int syscall_seek(void *, void *, void *);
 static unsigned int syscall_tell(void *, void *, void *);
 static unsigned int syscall_close(void *, void *, void *);
+static unsigned int syscall_mmap(void *, void *, void *);
+static unsigned int syscall_munmap(void *, void *, void *);
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 
 void syscall_init(void) {
@@ -64,6 +66,8 @@ void syscall_init(void) {
   syscall_functions[SYS_SEEK] = syscall_seek;
   syscall_functions[SYS_TELL] = syscall_tell;
   syscall_functions[SYS_CLOSE] = syscall_close;
+  syscall_functions[SYS_MMAP] = syscall_mmap;
+  syscall_functions[SYS_MUNMAP] = syscall_munmap;
 }
 
 static void check_valid_pointer(const void *pointer) {
@@ -357,3 +361,16 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
   free(opened_file);
   return 0;
 }
+
+static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
+  check_valid_pointer(arg1);
+  check_valid_pointer(arg2);
+  int fd = *(int *)arg1;
+  void *addr = *(char **)arg2;
+                                  }
+
+static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
+                                  void *arg3 UNUSED) {
+  check_valid_pointer(arg1); 
+  mapid_t mapping = *(int *)arg1;                             
+                                  }
