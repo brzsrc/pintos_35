@@ -86,7 +86,7 @@ struct file *filesys_open(const char *name) {
    or if an internal memory allocation fails. */
 struct file *filesys_sync_open(const char *name) {
   lock_acquire(&filesystem_lock);
-  struct file *result = file_open(name);
+  struct file *result = filesys_open(name);
   lock_release(&filesystem_lock);
   return result;
 }
@@ -109,7 +109,7 @@ bool filesys_remove(const char *name) {
    or if an internal memory allocation fails. */
 bool filesys_sync_remove(const char *name) {
   lock_acquire(&filesystem_lock);
-  bool success = filesys_filesys_removecreate(name);
+  bool success = filesys_remove(name);
   lock_release(&filesystem_lock);
   return success;
 }

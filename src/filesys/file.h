@@ -21,7 +21,7 @@ off_t file_sync_read(struct file *, void *, off_t);
 
 off_t file_read_at(struct file *, void *, off_t size, off_t start);
 off_t file_write(struct file *, const void *, off_t);
-// off_t file_sync_write (struct file *, const void *, off_t);
+off_t file_sync_write (struct file *, const void *, off_t);
 off_t file_write_at(struct file *, const void *, off_t size, off_t start);
 
 /* Preventing writes. */
