@@ -33,6 +33,7 @@ struct spmt_pt_entry {
   size_t page_read_bytes;
   size_t page_zero_bytes;
   off_t current_offset;
+  struct file *file;
 };
 
 void spmtpt_init(struct hash *spmt_pt);
@@ -45,7 +46,8 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
 void spmtpt_load_details(struct spmt_pt_entry *e,
                               size_t page_read_bytes,
                               size_t page_zero_bytes,
-                              off_t current_offset);
+                              off_t current_offset,
+                              struct file *file);
 // To be called in process exit
 void spmtpt_free(struct hash *spmt_pt);
 bool spmtpt_load_page(struct spmt_pt_entry *e);

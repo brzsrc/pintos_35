@@ -12,6 +12,12 @@ struct opened_file {
   struct list_elem elem;
 };
 
+struct mmaped_file {
+  mapid_t mid;
+  struct spmt_pt_entry *entry;
+  struct list_elem elem;
+};
+
 void syscall_init(void);
 void syscall_exit_helper(int exit_status);
 

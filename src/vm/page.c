@@ -44,10 +44,12 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
 
 void spmtpt_load_details(struct spmt_pt_entry *e, size_t page_read_bytes,
                          size_t page_zero_bytes,
-                         off_t current_offset) {
+                         off_t current_offset,
+                         struct file *file) {
   e->current_offset = current_offset;
   e->page_read_bytes = page_read_bytes;
   e->page_zero_bytes = page_zero_bytes;
+  e->file = file;
 }
 
 /*Find and return the entry if t->upage is valid addr. Otherwise return NULL*/

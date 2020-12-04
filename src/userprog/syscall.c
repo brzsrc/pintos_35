@@ -217,7 +217,6 @@ static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
   return result;
 }
 
-// Tested OK
 static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   check_valid_pointer(arg1);
@@ -390,21 +389,73 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   int fd = *(int *)arg1;
   void *addr = *(char **)arg2;
 
-  mapid_t mid;
-
   struct opened_file *opened_file = get_opened_file(fd);
   struct file *file = opened_file->file;
-  if (!opened_file || !file || file_length(file) == 0 || addr == 0
-                   || fd == STDIN_FILENO || fd == STDOUT_FILENO) {
+  off_t file_size = file_length(file);
+  if (!file || file_size == 0 || addr == 0
+            || fd == STDIN_FILENO || fd == STDOUT_FILENO) {
     return MAP_FAILED;
   }
 
-  return mid;
+  struct thread *t = thread_current(); 
+  struct mmaped_file *mmaped_file = (struct mmaped_file *)malloc(sizeof(struct mmaped_file));
+  mmaped_file->mid = ++t->mmaped_cnt;
+
+  struct list *mmaped_files = &t->mmaped_files;
+  list_push_back(mmaped_files, &mmaped_file->elem);
+
+  off_t read_bytes = file_size;
+  off_t zero_bytes = 0;
+  void *upage = addr;
+  off_t current_offset = 0;
+
+  while (read_bytes > 0) {
+    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+    /* Check if virtual page already allocated */
+    struct spmt_pt_entry *e 
+      = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+    
+    // There must not be any identical entry
+    if(!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
+      return false;
+    }
+    spmtpt_load_details(e, page_read_bytes,
+                             page_zero_bytes, current_offset, file);
+
+    /* Advance. */
+    read_bytes -= page_read_bytes;
+    zero_bytes -= page_zero_bytes;
+    upage += PGSIZE;
+    current_offset += PGSIZE;
+  }
+}
+
+
+static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
+                                  void *arg3 UNUSED) {
+  check_valid_pointer(arg1);
+  int fd = *(int *)arg1;
+
+  struct opened_file *opened_file;
+  opened_file = get_opened_file(fd);
+
+  if (!opened_file || !opened_file->file) {
+    return -1;
+  }
+
+  file_sync_close(opened_file->file);
+
+  list_remove(&opened_file->elem);
+  free(opened_file);
+  return 0;
 }
 
 static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
                                   void *arg3 UNUSED) {
   check_valid_pointer(arg1); 
-  mapid_t mapping = *(int *)arg1;  
-                             
-                                  }
+  mapid_t mapping = *(mapid_t *)arg1;  
+  
+
+}
