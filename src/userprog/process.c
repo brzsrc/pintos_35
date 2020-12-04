@@ -244,7 +244,7 @@ void process_exit(void) {
   if (cur->file && cur->is_user_process) {
     file_allow_write(cur->file);
     lock_acquire(&exec_lock);
-    file_close(cur->file);
+    file_sync_close(cur->file);
     lock_release(&exec_lock);
   }
 
@@ -360,7 +360,7 @@ struct Elf32_Phdr {
 
 static bool setup_stack(void **esp);
 static bool validate_segment(const struct Elf32_Phdr *, struct file *);
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
+static bool load_segment(off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable);
 
@@ -442,7 +442,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
             read_bytes = 0;
             zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
           }
-          if (!load_segment(file, file_page, (void *)mem_page, read_bytes,
+          if (!load_segment(file_page, (void *)mem_page, read_bytes,
                             zero_bytes, writable))
             goto done;
         } else
@@ -520,7 +520,7 @@ static bool validate_segment(const struct Elf32_Phdr *phdr, struct file *file) {
 
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
+static bool load_segment(off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable) {
   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
@@ -537,14 +537,15 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
     /* Check if virtual page already allocated */
     struct thread *t = thread_current();
-    struct spmt_pt_entry *e = spmtpt_entry_init(upage, IN_FILE, t);
-    spmtpt_load_details(e, page_read_bytes,
-                             page_zero_bytes, writable, current_offset);
-
+    struct spmt_pt_entry *e 
+      = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+    
     // There must not be any identical entry
-    if (spmtpt_insert(&t->spmt_pt, e) != NULL) {
+    if(!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
       return false;
     }
+    spmtpt_load_details(e, page_read_bytes,
+                             page_zero_bytes, current_offset);
 
     /* Advance. */
     read_bytes -= page_read_bytes;
@@ -555,67 +556,28 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-// static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-//                          uint32_t read_bytes, uint32_t zero_bytes,
-//                          bool writable) {
-//   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
-//   ASSERT(pg_ofs(upage) == 0);
-//   ASSERT(ofs % PGSIZE == 0);
-
-//   file_seek(file, ofs);
-//   while (read_bytes > 0 || zero_bytes > 0) {
-//     /* Calculate how to fill this page.
-//        We will read PAGE_READ_BYTES bytes from FILE
-//        and zero the final PAGE_ZERO_BYTES bytes. */
-//     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-//     size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
-//     /* Check if virtual page already allocated */
-//     struct thread *t = thread_current();
-//     uint8_t *kpage = pagedir_get_page(t->pagedir, upage);
-
-//     if (kpage == NULL) {
-//       /* Get a new page of memory. */
-//       // kpage = palloc_get_page(PAL_USER);
-//       kpage = frame_alloc(PAL_USER, upage, t);
-//       if (kpage == NULL) {
-//         return false;
-//       }
-
-//       /* Add the page to the process's address space. */
-//       if (!install_page(upage, kpage, writable)) {
-//         palloc_free_page(kpage);
-//         return false;
-//       }
-//     }
-
-//     /* Load data into the page. */
-//    if (file_read(file, kpage, page_read_bytes) != (int)page_read_bytes) {
-//       palloc_free_page(kpage);
-//       return false;
-//     }
-//     memset(kpage + page_read_bytes, 0, page_zero_bytes);
-
-//     /* Advance. */
-//     read_bytes -= page_read_bytes;
-//     zero_bytes -= page_zero_bytes;
-//     upage += PGSIZE;
-//   }
-//   return true;
-// }
-
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool setup_stack(void **esp) {
   uint8_t *kpage;
+  uint8_t *upage = ((uint8_t *)PHYS_BASE) - PGSIZE;
+  struct thread *t = thread_current();
   bool success = false;
 
-  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  kpage = frame_alloc(PAL_USER | PAL_ZERO, upage, t);
   if (kpage != NULL) {
-    success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
-    if (success)
+    success = install_page(upage, kpage, true);
+    if (success) {
       *esp = PHYS_BASE;
+      struct spmt_pt_entry *e 
+        = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
+      // There must not be any identical entry
+      if(!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
+        return false;
+      }
+    }
     else
       palloc_free_page(kpage);
   }
@@ -639,3 +601,4 @@ static bool install_page(void *upage, void *kpage, bool writable) {
   return (pagedir_get_page(t->pagedir, upage) == NULL &&
           pagedir_set_page(t->pagedir, upage, kpage, writable));
 }
+

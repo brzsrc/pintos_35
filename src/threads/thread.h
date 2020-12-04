@@ -117,6 +117,7 @@ struct thread {
   /* Shared between thread.c and systemcall.c. */
   struct list
       opened_files; /* The list of all the open files the thread holds */
+  uint8_t *esp;
 
   struct list childs; /* The list of child processes the thread holds */
   struct child *child; /* the child struct the thread holds */
