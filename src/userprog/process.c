@@ -542,6 +542,7 @@ static bool load_segment(off_t ofs, uint8_t *upage,
     
     // There must not be any identical entry
     if(!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
+      free(e);
       return false;
     }
     spmtpt_load_details(e, page_read_bytes,
@@ -575,6 +576,7 @@ static bool setup_stack(void **esp) {
 
       // There must not be any identical entry
       if(!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
+        free(e);
         return false;
       }
     }

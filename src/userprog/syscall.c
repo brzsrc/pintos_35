@@ -17,6 +17,7 @@
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 #include "vm/page.h"
+#include "vm/frame.h"
 
 // Function pointers to syscall functions
 typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
@@ -45,6 +46,7 @@ static unsigned int syscall_tell(void *, void *, void *);
 static unsigned int syscall_close(void *, void *, void *);
 static unsigned int syscall_mmap(void *, void *, void *);
 static unsigned int syscall_munmap(void *, void *, void *);
+static void munmap_entry(struct spmt_pt_entry *e);
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
 static int get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
@@ -131,6 +133,23 @@ static struct opened_file *get_opened_file(int fd) {
     struct opened_file *opened_file = list_entry(e, struct opened_file, elem);
     if (opened_file->fd == fd) {
       return opened_file;
+    }
+  }
+  return NULL;
+}
+
+static struct mmaped_file *get_mmaped_file(mapid_t mapid) {
+  struct list *mmaped_files = &thread_current()->mmaped_files;
+  struct list_elem *e;
+  if (list_empty(mmaped_files)) {
+    return NULL;
+  }
+
+  for (e = list_begin(mmaped_files); e != list_end(mmaped_files);
+       e = list_next(e)) {
+    struct mmaped_file *mmaped_file = list_entry(e, struct mmaped_file, elem);
+    if (mmaped_file->mapid == mapid) {
+      return mmaped_file;
     }
   }
   return NULL;
@@ -399,7 +418,9 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
 
   struct thread *t = thread_current(); 
   struct mmaped_file *mmaped_file = (struct mmaped_file *)malloc(sizeof(struct mmaped_file));
-  mmaped_file->mid = ++t->mmaped_cnt;
+  mmaped_file->mapid = ++t->mmaped_cnt;
+  mmaped_file->file = file;
+  list_init(&mmaped_file->mmaped_spmtpt_entries);
 
   struct list *mmaped_files = &t->mmaped_files;
   list_push_back(mmaped_files, &mmaped_file->elem);
@@ -419,10 +440,12 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
     
     // There must not be any identical entry
     if(!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
+      free(e);
       return false;
     }
     spmtpt_load_details(e, page_read_bytes,
                              page_zero_bytes, current_offset, file);
+    list_push_back(&mmaped_file->mmaped_spmtpt_entries, &e->list_elem);
 
     /* Advance. */
     read_bytes -= page_read_bytes;
@@ -430,32 +453,50 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
     upage += PGSIZE;
     current_offset += PGSIZE;
   }
-}
-
-
-static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
-                                  void *arg3 UNUSED) {
-  check_valid_pointer(arg1);
-  int fd = *(int *)arg1;
-
-  struct opened_file *opened_file;
-  opened_file = get_opened_file(fd);
-
-  if (!opened_file || !opened_file->file) {
-    return -1;
-  }
-
-  file_sync_close(opened_file->file);
-
-  list_remove(&opened_file->elem);
-  free(opened_file);
   return 0;
 }
 
 static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
                                   void *arg3 UNUSED) {
   check_valid_pointer(arg1); 
-  mapid_t mapping = *(mapid_t *)arg1;  
-  
+  mapid_t mapid = *(mapid_t *)arg1;  
+  struct mmaped_file *mmaped_file = get_mmaped_file(mapid);
 
+  if (!mmaped_file || !mmaped_file->file) {
+    return -1;
+  }
+  struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
+  struct list_elem *e; 
+  for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
+    struct spmt_pt_entry *entry = list_entry(e, struct spmt_pt_entry, list_elem);
+    munmap_entry(entry);
+  }
+  return 0;
+}
+
+static void munmap_entry(struct spmt_pt_entry *e) {
+  switch (e->status)
+  {
+    case IN_FILE:
+      break;
+    
+    case IN_FRAME:
+      if(e->is_dirty) {
+        //idk why its e->upage here 我抄的
+        file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
+      }
+      frame_node_free(e->kpage);
+      pagedir_clear_page(e->t->pagedir, e->upage);
+      spmtpt_entry_free(&e->t->spmt_pt, e);
+      break;
+
+    case IN_SWAP:
+      break;
+  
+    case ALL_ZERO:
+      break;
+
+    default:
+      break;
+  }
 }

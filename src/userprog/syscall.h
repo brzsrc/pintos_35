@@ -13,9 +13,10 @@ struct opened_file {
 };
 
 struct mmaped_file {
-  mapid_t mid;
-  struct spmt_pt_entry *entry;
+  mapid_t mapid;
+  struct file *file;
   struct list_elem elem;
+  struct list mmaped_spmtpt_entries;
 };
 
 void syscall_init(void);

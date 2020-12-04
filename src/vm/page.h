@@ -20,6 +20,7 @@ enum upage_status {
 /* the entry in the supplymental page table */
 struct spmt_pt_entry {
   struct hash_elem hash_elem;
+  struct list_elem list_elem;
   enum upage_status status;
   bool is_dirty;
   bool writable;
@@ -27,6 +28,7 @@ struct spmt_pt_entry {
   block_sector_t sector;
 
   void *upage;
+  void *kpage;
   struct thread *t;
 
   // value: essential details to load a segment
@@ -51,4 +53,5 @@ void spmtpt_load_details(struct spmt_pt_entry *e,
 // To be called in process exit
 void spmtpt_free(struct hash *spmt_pt);
 bool spmtpt_load_page(struct spmt_pt_entry *e);
+void spmtpt_entry_free(struct hash *spmt_pt, struct spmt_pt_entry *spmtpt_entry);
 #endif

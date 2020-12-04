@@ -16,10 +16,10 @@
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
 static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
-static void spmtpt_entry_free(struct spmt_pt_entry *spmtpt_entry);
 static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t);
 static bool load_from_file(struct spmt_pt_entry *e);
 static bool install_page(struct spmt_pt_entry *e, void *kpage);
+static bool load_all_zero(struct spmt_pt_entry *e);
 
 void spmtpt_init(struct hash *spmt_pt) {
   hash_init(spmt_pt, spmtpt_hash, spmtpt_less, NULL);
@@ -66,37 +66,50 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   if (!e) {
     return false;
   }
-  if (e->status == IN_FILE) {
-    return load_from_file(e);
-  }
-  // else if (e->status == IN_SWAP)
-  // {
-  //   return load_from_swap(e, t);
-  // }
-  else if (e->status == ALL_ZERO)
-  {
-    void *kpage = frame_alloc(PAL_ZERO, e, e->t);
-    if (kpage == NULL) {
-      return false;
-    }
 
-    /* Add the page to the process's address space. */
-    if (!install_page(e, kpage)) {
-      NOT_REACHED();
-      palloc_free_page(kpage);
-      return false;
-    }
-    memset (kpage, 0, PGSIZE);
-    e->status = IN_FRAME;
-    return true;
+  switch (e->status)
+  {
+    case IN_FILE:
+      return load_from_file(e);
+    
+    case IN_FRAME:
+      break;
+
+    case IN_SWAP:
+      //return load_from_swap(e, t);
+      break;
+
+    case ALL_ZERO:
+      return load_all_zero(e);
+      
+    default:
+      break;
   }
-  
   return false;
 }
 
 // static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t) {
 //   swap_out(e);
 // }
+
+static bool load_all_zero(struct spmt_pt_entry *e) {
+  void *kpage = frame_alloc(PAL_ZERO, e, e->t);
+  if (kpage == NULL) {
+    return false;
+  }
+
+  /* Add the page to the process's address space. */
+  if (!install_page(e, kpage)) {
+    NOT_REACHED();
+    palloc_free_page(kpage);
+    return false;
+  }
+
+  memset (kpage, 0, PGSIZE);
+  e->status = IN_FRAME;
+  e->kpage = kpage;
+  return true;
+}
 
 static bool load_from_file(struct spmt_pt_entry *e) {
   /* Check if virtual page already allocated */
@@ -125,6 +138,7 @@ static bool load_from_file(struct spmt_pt_entry *e) {
 
     memset(kpage + e->page_read_bytes, 0, e->page_zero_bytes);
     e->status = IN_FRAME;
+    e->kpage = kpage;
     return true;
   } else {
     // Something went wrong
@@ -163,7 +177,8 @@ void spmtpt_free(struct hash *spmt_pt) {
   return;
 }
 
-static void spmtpt_entry_free(struct spmt_pt_entry *spmtpt_entry) {
+void spmtpt_entry_free(struct hash *spmt_pt, struct spmt_pt_entry *spmtpt_entry) {
+  hash_delete(spmt_pt, spmtpt_entry);
   free(spmtpt_entry);
 }
 

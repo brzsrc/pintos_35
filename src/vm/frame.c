@@ -69,3 +69,19 @@ static bool frame_less(const struct hash_elem *a_, const struct hash_elem *b_,
   const struct frame_node *b = hash_entry(b_, struct frame_node, hash_elem);
   return a->kpage < b->kpage;
 }
+
+void frame_node_free(void *kpage) {
+  struct frame_node *node = frame_find(kpage);
+  hash_delete(&frame_table, &node->hash_elem);
+  free(node);
+}
+
+/*Find and return the entry if t->upage is valid addr. Otherwise return NULL*/
+struct frame_node *frame_find(void *kpage) {
+  struct frame_node node;
+  struct hash_elem *elem;
+  node.kpage = kpage;
+  elem = hash_find(&frame_table, &node.hash_elem);
+  return elem != NULL ? hash_entry(elem, struct spmt_pt_entry, hash_elem)
+                      : NULL;
+}
