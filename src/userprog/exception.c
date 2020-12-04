@@ -170,8 +170,13 @@ static void page_fault(struct intr_frame *f) {
     /* Here is used to check if we need to grow the stack
        其实可以删掉，删掉的话就是只要e == NULL， 就load one ALL-ZERO page
        这样可以pass tests，但是可能再往后写会有问题*/
+<<<<<<< HEAD
     bool is_stack_frame = (fault_addr >= esp || fault_addr == f->esp - 4 ||
                            fault_addr == f->esp - 32);
+=======
+    bool is_stack_frame = (fault_addr >= esp || fault_addr == esp - 4 ||
+                           fault_addr == esp - 32);
+>>>>>>> ada014739eceacbb8162df594ae0f19cd99bd203
     // i.e. not overflowing
     bool is_ok_stack_addr =
         (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
