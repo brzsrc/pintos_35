@@ -76,6 +76,7 @@ static int get_user(const uint8_t *uaddr) {
   asm("movl $1f, %0; movzbl %1, %0; 1:" : "=&a"(result) : "m"(*uaddr));
   return result;
 }
+
 /* Writes BYTE to user address UDST.
 UDST must be below PHYS_BASE.
 Returns true if successful, false if a segfault occurred. */
