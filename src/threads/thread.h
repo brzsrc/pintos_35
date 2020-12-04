@@ -120,6 +120,7 @@ struct thread {
   struct list mmaped_files;
   uint8_t *esp;
   int mmaped_cnt;
+  int opened_cnt;
 
   struct list childs; /* The list of child processes the thread holds */
   struct child *child; /* the child struct the thread holds */

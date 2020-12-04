@@ -542,7 +542,7 @@ static bool load_segment(off_t ofs, uint8_t *upage,
     
     // There must not be any identical entry
     if(!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
-      free(e);
+      spmtpt_entry_free(&e->t->spmt_pt, e);
       return false;
     }
     spmtpt_load_details(e, page_read_bytes,

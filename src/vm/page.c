@@ -53,11 +53,11 @@ void spmtpt_load_details(struct spmt_pt_entry *e, size_t page_read_bytes,
 }
 
 /*Find and return the entry if t->upage is valid addr. Otherwise return NULL*/
-struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage) {
+struct spmt_pt_entry *spmtpt_find(struct hash *spmt_pt, void *upage) {
   struct spmt_pt_entry entry;
   struct hash_elem *elem;
   entry.upage = upage;
-  elem = hash_find(&t->spmt_pt, &entry.hash_elem);
+  elem = hash_find(spmt_pt, &entry.hash_elem);
   return elem != NULL ? hash_entry(elem, struct spmt_pt_entry, hash_elem)
                       : NULL;
 }
@@ -70,6 +70,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   switch (e->status)
   {
     case IN_FILE:
+      printf("in file");
       return load_from_file(e);
     
     case IN_FRAME:
@@ -80,6 +81,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
       break;
 
     case ALL_ZERO:
+      printf("all zero");
       return load_all_zero(e);
       
     default:

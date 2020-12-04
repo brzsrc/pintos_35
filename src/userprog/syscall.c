@@ -241,6 +241,7 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   check_valid_pointer(arg1);
   const char *file_name = *(char **)arg1;
   check_valid_arg(file_name, 0);
+  struct thread *t = thread_current();
 
   struct file *file = filesys_sync_open(file_name);
   if (!file) {
@@ -253,13 +254,13 @@ static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
   }
 
   opened_file->file = file;
-  struct list *opened_files = &thread_current()->opened_files;
+  struct list *opened_files = &t->opened_files;
 
   if (list_empty(opened_files)) {
     opened_file->fd = 2;
+    t->opened_cnt = 2;
   } else {
-    opened_file->fd =
-        list_entry(list_back(opened_files), struct opened_file, elem)->fd + 1;
+    opened_file->fd = ++t->opened_cnt;
   }
   list_push_back(opened_files, &opened_file->elem);
 
@@ -301,7 +302,7 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
   for (void *upage = pg_round_down(buffer); upage < buffer + size;
        upage += PGSIZE) {
     struct thread *t = thread_current();
-    struct spmt_pt_entry *entry = spmtpt_find(t, upage);
+    struct spmt_pt_entry *entry = spmtpt_find(&t->spmt_pt, upage);
     spmtpt_load_page(entry);
   }
 
@@ -339,7 +340,7 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
   for (void *upage = pg_round_down(buffer); upage < buffer + size;
        upage += PGSIZE) {
     struct thread *t = thread_current();
-    struct spmt_pt_entry *entry = spmtpt_find(t, upage);
+    struct spmt_pt_entry *entry = spmtpt_find(&t->spmt_pt, upage);
     spmtpt_load_page(entry);
   }
 
@@ -406,12 +407,13 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   check_valid_pointer(arg1);
   check_valid_pointer(arg2);
   int fd = *(int *)arg1;
-  void *addr = *(char **)arg2;
+  void *upage = arg2;
+  printf("upage1: %p\n", upage);
 
   struct opened_file *opened_file = get_opened_file(fd);
   struct file *file = opened_file->file;
   off_t file_size = file_length(file);
-  if (!file || file_size == 0 || addr == 0
+  if (!file || file_size == 0 || upage == 0
             || fd == STDIN_FILENO || fd == STDOUT_FILENO) {
     return MAP_FAILED;
   }
@@ -426,15 +428,23 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   list_push_back(mmaped_files, &mmaped_file->elem);
 
   off_t read_bytes = file_size;
-  off_t zero_bytes = 0;
-  void *upage = addr;
   off_t current_offset = 0;
+
+  /* Check page addr */
+  for (size_t ofs = 0; ofs < file_size; ofs += PGSIZE)
+    {
+      void *addr = upage + ofs;
+      if (spmtpt_find(&t->spmt_pt, addr) != NULL)
+        {
+          return MAP_FAILED;
+        }
+    }
 
   while (read_bytes > 0) {
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    /* Check if virtual page already allocated */
+    printf("upage: %p\n", upage);
     struct spmt_pt_entry *e 
       = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
     
@@ -449,7 +459,6 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
 
     /* Advance. */
     read_bytes -= page_read_bytes;
-    zero_bytes -= page_zero_bytes;
     upage += PGSIZE;
     current_offset += PGSIZE;
   }

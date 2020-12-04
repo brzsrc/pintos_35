@@ -159,8 +159,10 @@ static void page_fault(struct intr_frame *f) {
   if (not_present) {
     // obtain the page the fault addr belongs to
     uint8_t *fault_page = pg_round_down(fault_addr);
-    struct spmt_pt_entry *e = spmtpt_find(t, fault_page);
+    struct spmt_pt_entry *e = spmtpt_find(&t->spmt_pt, fault_page);
     
+   
+
     /* If it's user accessed, then we can get the esp in intr_frame
        otherwise if it's kernel accessed, in syscall, then we must get
        the esp from t->esp */
@@ -182,6 +184,12 @@ static void page_fault(struct intr_frame *f) {
       }
     }
 
+   
+      if(e == NULL) {
+          printf("fault_addr: %p\n", fault_addr);
+   printf("fault_page: %p\n", fault_page);
+         printf(".........................\n");
+      }
     if (spmtpt_load_page(e)) {
       return;
     }

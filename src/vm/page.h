@@ -41,7 +41,7 @@ struct spmt_pt_entry {
 void spmtpt_init(struct hash *spmt_pt);
 struct hash_elem *spmtpt_insert(struct hash *hash, struct spmt_pt_entry *entry);
 
-struct spmt_pt_entry *spmtpt_find(struct thread *t, void *upage);
+struct spmt_pt_entry *spmtpt_find(struct hash *spmt_pt, void *upage);
 
 bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
                        enum upage_status status, struct thread *t);
