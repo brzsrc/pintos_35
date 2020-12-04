@@ -16,7 +16,7 @@
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
 static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
-static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t);
+// static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t);
 static bool load_from_file(struct spmt_pt_entry *e);
 static bool install_page(struct spmt_pt_entry *e, void *kpage);
 static bool load_all_zero(struct spmt_pt_entry *e);
@@ -101,7 +101,8 @@ static bool load_all_zero(struct spmt_pt_entry *e) {
   /* Add the page to the process's address space. */
   if (!install_page(e, kpage)) {
     NOT_REACHED();
-    palloc_free_page(kpage);
+    spmtpt_entry_free(&e->t->spmt_pt, e);
+    frame_node_free(kpage);
     return false;
   }
 
@@ -123,7 +124,8 @@ static bool load_from_file(struct spmt_pt_entry *e) {
     /* Add the page to the process's address space. */
     if (!install_page(e, kpage)) {
       NOT_REACHED();
-      palloc_free_page(kpage);
+      spmtpt_entry_free(&e->t->spmt_pt, e);
+      frame_node_free(kpage);
       return false;
     }
 
@@ -132,7 +134,8 @@ static bool load_from_file(struct spmt_pt_entry *e) {
     if (file_sync_read(e->t->file, kpage, e->page_read_bytes) !=
         (int)e->page_read_bytes) {
       NOT_REACHED();
-      palloc_free_page(kpage);
+      spmtpt_entry_free(&e->t->spmt_pt, e);
+      frame_node_free(kpage);
       return false;
     }
 
@@ -178,7 +181,8 @@ void spmtpt_free(struct hash *spmt_pt) {
 }
 
 void spmtpt_entry_free(struct hash *spmt_pt, struct spmt_pt_entry *spmtpt_entry) {
-  hash_delete(spmt_pt, spmtpt_entry);
+  hash_delete(spmt_pt, &spmtpt_entry->hash_elem);
+  palloc_free_page(spmtpt_entry->kpage);
   free(spmtpt_entry);
 }
 

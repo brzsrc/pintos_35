@@ -440,7 +440,7 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
     
     // There must not be any identical entry
     if(!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
-      free(e);
+      spmtpt_entry_free(&e->t->spmt_pt, e);
       return false;
     }
     spmtpt_load_details(e, page_read_bytes,
