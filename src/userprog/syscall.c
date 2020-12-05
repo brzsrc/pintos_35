@@ -416,8 +416,7 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   if(opened_file && opened_file->file) {
     file = opened_file->file;
     file_size = file_length(file);
-  } else
-  {
+  } else {
     return MAP_FAILED;
   }
   
@@ -432,7 +431,6 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
       (struct mmaped_file *)malloc(sizeof(struct mmaped_file));
   mmaped_file->mapid = ++t->mmaped_cnt;
   mmaped_file->file = file;
-  
   list_init(&mmaped_file->mmaped_spmtpt_entries);
   list_push_back(&t->mmaped_files, &mmaped_file->elem);
 
