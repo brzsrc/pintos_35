@@ -72,8 +72,10 @@ static bool frame_less(const struct hash_elem *a_, const struct hash_elem *b_,
 
 void frame_node_free(void *kpage) {
   struct frame_node *node = frame_find(kpage);
-  hash_delete(&frame_table, &node->hash_elem);
-  palloc_free_page(kpage);
+  if(node) {
+    hash_delete(&frame_table, &node->hash_elem);
+    palloc_free_page(kpage);
+  }
   free(node);
 }
 
