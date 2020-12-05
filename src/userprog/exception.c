@@ -186,9 +186,9 @@ static void page_fault(struct intr_frame *f) {
 
    
       if(e == NULL) {
-          printf("fault_addr: %p\n", fault_addr);
-   printf("fault_page: %p\n", fault_page);
-         printf(".........................\n");
+  //         printf("fault_addr: %p\n", fault_addr);
+  //  printf("fault_page: %p\n", fault_page);
+  //        printf(".........................\n");
       }
     if (spmtpt_load_page(e)) {
       return;

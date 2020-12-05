@@ -70,7 +70,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   switch (e->status)
   {
     case IN_FILE:
-      printf("in file");
+      // printf("in file");
       return load_from_file(e);
     
     case IN_FRAME:
@@ -81,7 +81,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
       break;
 
     case ALL_ZERO:
-      printf("all zero");
+      // printf("all zero");
       return load_all_zero(e);
       
     default:
@@ -130,10 +130,11 @@ static bool load_from_file(struct spmt_pt_entry *e) {
       frame_node_free(kpage);
       return false;
     }
-
+    // printf("e->file: %p", e->file);
+    // printf("e->t->file: %p", e->t->file);
     /* Load data into the page. */
-    file_sync_seek(e->t->file, e->current_offset);
-    if (file_sync_read(e->t->file, kpage, e->page_read_bytes) !=
+    file_sync_seek(e->file, e->current_offset);
+    if (file_sync_read(e->file, kpage, e->page_read_bytes) !=
         (int)e->page_read_bytes) {
       NOT_REACHED();
       spmtpt_entry_free(&e->t->spmt_pt, e);

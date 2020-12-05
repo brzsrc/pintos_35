@@ -407,8 +407,8 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   check_valid_pointer(arg1);
   check_valid_pointer(arg2);
   int fd = *(int *)arg1;
-  void *upage = arg2;
-  printf("upage1: %p\n", upage);
+  void *upage = *(void **)arg2;
+  // printf("upage1: %p\n", upage);
 
   struct opened_file *opened_file = get_opened_file(fd);
   struct file *file = opened_file->file;
@@ -430,21 +430,21 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   off_t read_bytes = file_size;
   off_t current_offset = 0;
 
-  /* Check page addr */
-  for (size_t ofs = 0; ofs < file_size; ofs += PGSIZE)
-    {
-      void *addr = upage + ofs;
-      if (spmtpt_find(&t->spmt_pt, addr) != NULL)
-        {
-          return MAP_FAILED;
-        }
-    }
+  // /* Check page addr */
+  // for (size_t ofs = 0; ofs < file_size; ofs += PGSIZE)
+  //   {
+  //     void *addr = upage + ofs;
+  //     if (spmtpt_find(&t->spmt_pt, addr) != NULL)
+  //       {
+  //         return MAP_FAILED;
+  //       }
+  //   }
 
   while (read_bytes > 0) {
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    printf("upage: %p\n", upage);
+    // printf("upage: %p\n", upage);
     struct spmt_pt_entry *e 
       = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
     
