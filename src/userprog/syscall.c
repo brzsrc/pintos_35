@@ -414,7 +414,7 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   off_t file_size;
 
   if(opened_file && opened_file->file) {
-    file = opened_file->file;
+    file = file_reopen(opened_file->file);
     file_size = file_length(file);
   } else {
     return MAP_FAILED;
@@ -501,10 +501,12 @@ static void munmap_entry(struct spmt_pt_entry *e) {
       
     case IN_FRAME:
     {
-      if (e->is_dirty) {
+      // if (e->is_dirty) {
         // idk why its e->upage here 我抄的
+        //for now let's write back to file no matter it's dirty or not
+        // since we haven't implement dirty bit yet
         file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
-      }
+      // }
       list_remove(&e->list_elem);
       frame_node_free(e->kpage); 
       pagedir_clear_page(e->t->pagedir, e->upage);
