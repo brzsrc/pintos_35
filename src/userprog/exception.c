@@ -172,18 +172,15 @@ static void page_fault(struct intr_frame *f) {
         (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
 
     if (is_stack_frame && is_stack_addr) {
-      if (e == NULL) {
-        e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-        if (!spmtpt_entry_init(e, fault_page, true, ALL_ZERO, t)) {
-          free(e);
-          kill(f);
-        }
+      e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+      if (!spmtpt_entry_init(e, fault_page, true, ALL_ZERO, t)) {
+        spmtpt_entry_free(&t->spmt_pt, e);
+        kill(f);
       }
     }
-   
-    if (spmtpt_load_page(e)) {
+
+    if (spmtpt_load_page(e))
       return;
-    } 
   }
 
   /* if the page fault is not caused by stack_growth/load_page/present?,
