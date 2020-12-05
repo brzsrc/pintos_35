@@ -95,6 +95,8 @@ static void kill(struct intr_frame *f) {
              f->vec_no, intr_name(f->vec_no));
       intr_dump_frame(f);
       syscall_exit_helper(-1);
+      NOT_REACHED();
+      break;
 
     case SEL_KCSEG:
       /* Kernel's code segment, which indicates a kernel bug.
@@ -153,15 +155,15 @@ static void page_fault(struct intr_frame *f) {
 
   struct thread *t = thread_current();
 
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+  // DEBUG
+  printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
+         not_present ? "not present" : "rights violation",
+         write ? "writing" : "reading", user ? "user" : "kernel");
+
   if (not_present) {
     // obtain the page the fault addr belongs to
     uint8_t *fault_page = pg_round_down(fault_addr);
     struct spmt_pt_entry *e = spmtpt_find(&t->spmt_pt, fault_page);
-    
-   
 
     /* If it's user accessed, then we can get the esp in intr_frame
        otherwise if it's kernel accessed, in syscall, then we must get
@@ -169,46 +171,61 @@ static void page_fault(struct intr_frame *f) {
     void *esp = user ? f->esp : t->esp;
 
     /* Here is used to check if we need to grow the stack */
-    bool is_stack_frame = (fault_addr >= esp || fault_addr == esp - 4 ||
-                           fault_addr == esp - 32);
+    bool is_stack_frame =
+        (fault_addr >= esp || fault_addr == esp - 4 || fault_addr == esp - 32);
     bool is_stack_addr =
         (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
 
     if (is_stack_frame && is_stack_addr) {
       if (e == NULL) {
         e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-        if(!spmtpt_entry_init(e, fault_page, true, ALL_ZERO, t)) {
-           free(e);
-           kill(f);
+        if (!spmtpt_entry_init(e, fault_page, true, ALL_ZERO, t)) {
+          free(e);
+          kill(f);
         }
       }
+    } else {
+      // DEBUG
+      printf("not stack related\n");
     }
 
+<<<<<<< HEAD
    
       if(e == NULL) {
   //         printf("fault_addr: %p\n", fault_addr);
   //  printf("fault_page: %p\n", fault_page);
   //        printf(".........................\n");
       }
+=======
+    if (e == NULL) {
+      printf("fault_addr: %p\n", fault_addr);
+      printf("fault_page: %p\n", fault_page);
+      printf(".........................\n");
+    }
+    
+>>>>>>> ffaaa11b3fbd0ac4a5a7393118af7fd31109c28d
     if (spmtpt_load_page(e)) {
       return;
+    } else {
+      // DEBUG
+      printf("failed to load page\n");
     }
   }
 
-  /* if the page fault is not caused by stack_growth/load_page/present?, 
+  /* if the page fault is not caused by stack_growth/load_page/present?,
      then we should kill it/exit with an error code */
 
-   // this used to handle error code
-   //when an invalid pointer causes a page fault
-   if(!user) {
-      f->eip = (void *) f->eax;
-      f->eax = 0xffffffff;
-      return;
-   }
+  // this used to handle error code
+  // when an invalid pointer causes a page fault
+  if (!user) {
+    f->eip = (void *)f->eax;
+    f->eax = 0xffffffff;
+    return;
+  }
 
-  /* for page_fault cannot be handled, kill it */ 
-  printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
-         not_present ? "not present" : "rights violation",
-         write ? "writing" : "reading", user ? "user" : "kernel");
+  //   /* for page_fault cannot be handled, kill it */
+  //   printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
+  //          not_present ? "not present" : "rights violation",
+  //          write ? "writing" : "reading", user ? "user" : "kernel");
   kill(f);
 }

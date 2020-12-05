@@ -545,9 +545,14 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
       spmtpt_entry_free(&e->t->spmt_pt, e);
       return false;
     }
+<<<<<<< HEAD
     // printf("t->file: %p", t->file);
     spmtpt_load_details(e, page_read_bytes,
                              page_zero_bytes, current_offset, file);
+=======
+    spmtpt_fill_in_load_details(e, page_read_bytes,
+                             page_zero_bytes, current_offset, t->file);
+>>>>>>> ffaaa11b3fbd0ac4a5a7393118af7fd31109c28d
 
     /* Advance. */
     read_bytes -= page_read_bytes;
