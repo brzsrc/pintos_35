@@ -463,20 +463,20 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
 
 static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
                                    void *arg3 UNUSED) {
-  check_valid_pointer(arg1);
-  mapid_t mapid = *(mapid_t *)arg1;
-  struct mmaped_file *mmaped_file = get_mmaped_file(mapid);
+  // check_valid_pointer(arg1);
+  // mapid_t mapid = *(mapid_t *)arg1;
+  // struct mmaped_file *mmaped_file = get_mmaped_file(mapid);
 
-  if (!mmaped_file || !mmaped_file->file) {
-    return -1;
-  }
-  struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
-  struct list_elem *e;
-  for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
-    struct spmt_pt_entry *entry =
-        list_entry(e, struct spmt_pt_entry, list_elem);
-    munmap_entry(entry);
-  }
+  // if (!mmaped_file || !mmaped_file->file) {
+  //   return -1;
+  // }
+  // struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
+  // struct list_elem *e;
+  // for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
+  //   struct spmt_pt_entry *entry =
+  //       list_entry(e, struct spmt_pt_entry, list_elem);
+  //   munmap_entry(entry);
+  // }
   return 0;
 }
 
