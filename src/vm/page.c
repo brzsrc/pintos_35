@@ -149,6 +149,9 @@ static bool load_from_file(struct spmt_pt_entry *e) {
     memset(kpage + e->page_read_bytes, 0, e->page_zero_bytes);
     e->status = IN_FRAME;
     e->kpage = kpage;
+    // printf("e->kpage1: %p\n", e->kpage);
+    // printf("e->upage1: %p\n", e->upage);
+    // printf("....................................\n");
     return true;
   } else {
     // Something went wrong
@@ -189,11 +192,10 @@ void spmtpt_free(struct hash *spmt_pt) {
 
 void spmtpt_entry_free(struct hash *spmt_pt,
                        struct spmt_pt_entry *spmtpt_entry) {
-  // Why not just pass in the e??
-  hash_delete(spmt_pt, &spmtpt_entry->hash_elem);
+  
   // TODO
   // Should use frame alloc free page
-  palloc_free_page(spmtpt_entry->kpage);
+  hash_delete(spmt_pt, &spmtpt_entry->hash_elem);
   free(spmtpt_entry);
 }
 
