@@ -546,7 +546,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
       return false;
     }
     // printf("t->file: %p", t->file);
-    spmtpt_load_details(e, page_read_bytes,
+    spmtpt_fill_in_load_details(e, page_read_bytes,
                              page_zero_bytes, current_offset, file);
 
     /* Advance. */
