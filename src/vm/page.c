@@ -1,5 +1,6 @@
 #include "vm/page.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "filesys/file.h"
@@ -25,7 +26,10 @@ void spmtpt_init(struct hash *spmt_pt) {
   hash_init(spmt_pt, spmtpt_hash, spmtpt_less, NULL);
 }
 
-// Malloc. Since we assert non null, returned is always a valid pointer
+/**
+ * Fill in details in entry and then insert entry into t->spmt_pt
+ * Returns whether insertion is successful
+ */
 bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
                        enum upage_status status, struct thread *t) {
   ASSERT(entry != NULL);
@@ -37,15 +41,16 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
   entry->writable = writable;
 
   if (spmtpt_insert(&t->spmt_pt, entry) != NULL) {
-      return false;
+    // There exists an identical entry
+    return false;
   }
   return true;
 }
 
-void spmtpt_load_details(struct spmt_pt_entry *e, size_t page_read_bytes,
-                         size_t page_zero_bytes,
-                         off_t current_offset,
-                         struct file *file) {
+// fill in details in e
+void spmtpt_fill_in_load_details(struct spmt_pt_entry *e,
+                                 size_t page_read_bytes, size_t page_zero_bytes,
+                                 off_t current_offset, struct file *file) {
   e->current_offset = current_offset;
   e->page_read_bytes = page_read_bytes;
   e->page_zero_bytes = page_zero_bytes;
@@ -62,28 +67,31 @@ struct spmt_pt_entry *spmtpt_find(struct hash *spmt_pt, void *upage) {
                       : NULL;
 }
 
+/**
+ * Load frame into RAM according to e
+ * Return false if e is null, or load is not successful
+ */
 bool spmtpt_load_page(struct spmt_pt_entry *e) {
   if (!e) {
     return false;
   }
 
-  switch (e->status)
-  {
+  switch (e->status) {
     case IN_FILE:
-      printf("in file");
+      // printf("in file");
       return load_from_file(e);
-    
+
     case IN_FRAME:
       break;
 
     case IN_SWAP:
-      //return load_from_swap(e, t);
+      // return load_from_swap(e, t);
       break;
 
     case ALL_ZERO:
-      printf("all zero");
+      // printf("all zero");
       return load_all_zero(e);
-      
+
     default:
       break;
   }
@@ -108,7 +116,7 @@ static bool load_all_zero(struct spmt_pt_entry *e) {
     return false;
   }
 
-  memset (kpage, 0, PGSIZE);
+  memset(kpage, 0, PGSIZE);
   e->status = IN_FRAME;
   e->kpage = kpage;
   return true;
@@ -182,8 +190,12 @@ void spmtpt_free(struct hash *spmt_pt) {
   return;
 }
 
-void spmtpt_entry_free(struct hash *spmt_pt, struct spmt_pt_entry *spmtpt_entry) {
+void spmtpt_entry_free(struct hash *spmt_pt,
+                       struct spmt_pt_entry *spmtpt_entry) {
+  // Why not just pass in the e??
   hash_delete(spmt_pt, &spmtpt_entry->hash_elem);
+  // TODO
+  // Should use frame alloc free page
   palloc_free_page(spmtpt_entry->kpage);
   free(spmtpt_entry);
 }

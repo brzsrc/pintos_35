@@ -545,7 +545,7 @@ static bool load_segment(off_t ofs, uint8_t *upage,
       spmtpt_entry_free(&e->t->spmt_pt, e);
       return false;
     }
-    spmtpt_load_details(e, page_read_bytes,
+    spmtpt_fill_in_load_details(e, page_read_bytes,
                              page_zero_bytes, current_offset, t->file);
 
     /* Advance. */

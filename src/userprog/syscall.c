@@ -16,8 +16,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
-#include "vm/page.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 // Function pointers to syscall functions
 typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
@@ -95,7 +95,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
 }
 
 static void check_valid_pointer(const void *pointer) {
-  struct thread *t = thread_current();
+  // struct thread *t = thread_current();
   if (!pointer || !is_user_vaddr(pointer) || get_user(pointer) == -1) {
     syscall_exit_helper(-1);
   }
@@ -407,19 +407,23 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   check_valid_pointer(arg1);
   check_valid_pointer(arg2);
   int fd = *(int *)arg1;
-  void *upage = arg2;
-  printf("upage1: %p\n", upage);
+  void *upage = *(void **)arg2;
+  // DEBUG
+  // printf("upage1: %p\n", upage);
 
   struct opened_file *opened_file = get_opened_file(fd);
   struct file *file = opened_file->file;
   off_t file_size = file_length(file);
-  if (!file || file_size == 0 || upage == 0
-            || fd == STDIN_FILENO || fd == STDOUT_FILENO) {
+  if (!file || file_size == 0 || upage == 0 || fd == STDIN_FILENO ||
+      fd == STDOUT_FILENO) {
+    // DEBUG
+    printf("map failed\n");
     return MAP_FAILED;
   }
 
-  struct thread *t = thread_current(); 
-  struct mmaped_file *mmaped_file = (struct mmaped_file *)malloc(sizeof(struct mmaped_file));
+  struct thread *t = thread_current();
+  struct mmaped_file *mmaped_file =
+      (struct mmaped_file *)malloc(sizeof(struct mmaped_file));
   mmaped_file->mapid = ++t->mmaped_cnt;
   mmaped_file->file = file;
   list_init(&mmaped_file->mmaped_spmtpt_entries);
@@ -431,30 +435,34 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   off_t current_offset = 0;
 
   /* Check page addr */
-  for (size_t ofs = 0; ofs < file_size; ofs += PGSIZE)
-    {
-      void *addr = upage + ofs;
-      if (spmtpt_find(&t->spmt_pt, addr) != NULL)
-        {
-          return MAP_FAILED;
-        }
+  for (size_t ofs = 0; ofs < (unsigned)file_size; ofs += PGSIZE) {
+    void *addr = upage + ofs;
+    if (spmtpt_find(&t->spmt_pt, addr) != NULL) {
+      // DEBUG
+      printf("map failed due to overlap mem page\n");
+      return MAP_FAILED;
     }
+  }
 
   while (read_bytes > 0) {
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    printf("upage: %p\n", upage);
-    struct spmt_pt_entry *e 
-      = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-    
+    // printf("upage: %p\n", upage);
+    struct spmt_pt_entry *e =
+        (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
     // There must not be any identical entry
-    if(!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
+    if (!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
+      // Why free only one entry?
       spmtpt_entry_free(&e->t->spmt_pt, e);
-      return false;
+
+      // DEBUG
+      printf("map failed as we cannot insert into spmtpt\n");
+      return MAP_FAILED;
     }
-    spmtpt_load_details(e, page_read_bytes,
-                             page_zero_bytes, current_offset, file);
+    spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
+                                current_offset, file);
     list_push_back(&mmaped_file->mmaped_spmtpt_entries, &e->list_elem);
 
     /* Advance. */
@@ -466,32 +474,32 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
 }
 
 static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
-                                  void *arg3 UNUSED) {
-  check_valid_pointer(arg1); 
-  mapid_t mapid = *(mapid_t *)arg1;  
+                                   void *arg3 UNUSED) {
+  check_valid_pointer(arg1);
+  mapid_t mapid = *(mapid_t *)arg1;
   struct mmaped_file *mmaped_file = get_mmaped_file(mapid);
 
   if (!mmaped_file || !mmaped_file->file) {
     return -1;
   }
   struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
-  struct list_elem *e; 
+  struct list_elem *e;
   for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
-    struct spmt_pt_entry *entry = list_entry(e, struct spmt_pt_entry, list_elem);
+    struct spmt_pt_entry *entry =
+        list_entry(e, struct spmt_pt_entry, list_elem);
     munmap_entry(entry);
   }
   return 0;
 }
 
 static void munmap_entry(struct spmt_pt_entry *e) {
-  switch (e->status)
-  {
+  switch (e->status) {
     case IN_FILE:
       break;
-    
+
     case IN_FRAME:
-      if(e->is_dirty) {
-        //idk why its e->upage here 我抄的
+      if (e->is_dirty) {
+        // idk why its e->upage here 我抄的
         file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
       }
       frame_node_free(e->kpage);
@@ -501,7 +509,7 @@ static void munmap_entry(struct spmt_pt_entry *e) {
 
     case IN_SWAP:
       break;
-  
+
     case ALL_ZERO:
       break;
 
