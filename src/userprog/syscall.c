@@ -410,8 +410,18 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   void *upage = *(void **)arg2;
 
   struct opened_file *opened_file = get_opened_file(fd);
-  struct file *file = opened_file->file;
-  off_t file_size = file_length(file);
+  struct file *file;
+  off_t file_size;
+
+  if(opened_file && opened_file->file) {
+    file = opened_file->file;
+    file_size = file_length(file);
+  } else
+  {
+    return MAP_FAILED;
+  }
+  
+
   if (!file || file_size == 0 || upage == 0 || fd == STDIN_FILENO ||
       fd == STDOUT_FILENO) {
     return MAP_FAILED;
@@ -422,10 +432,9 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
       (struct mmaped_file *)malloc(sizeof(struct mmaped_file));
   mmaped_file->mapid = ++t->mmaped_cnt;
   mmaped_file->file = file;
+  
   list_init(&mmaped_file->mmaped_spmtpt_entries);
-
-  struct list *mmaped_files = &t->mmaped_files;
-  list_push_back(mmaped_files, &mmaped_file->elem);
+  list_push_back(&t->mmaped_files, &mmaped_file->elem);
 
   off_t read_bytes = file_size;
   off_t current_offset = 0;
@@ -451,7 +460,7 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
     upage += PGSIZE;
     current_offset += PGSIZE;
   }
-  return 0;
+  return mmaped_file->mapid;
 }
 
 static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
