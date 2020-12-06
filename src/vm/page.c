@@ -38,6 +38,7 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
   entry->t = t;
   entry->is_dirty = false;
   entry->writable = writable;
+  entry->sid = -1;
 
   if (spmtpt_insert(&t->spmt_pt, entry) != NULL) {
     // There exists an identical entry
@@ -83,7 +84,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
       break;
 
     case IN_SWAP:
-      break;
+      return load_from_swap_table(e);
 
     case ALL_ZERO:
       return load_all_zero(e);
@@ -112,7 +113,11 @@ static bool load_from_swap_table(struct spmt_pt_entry *e) {
     return false;
   }
 
-  // swap_read(, e->upage);
+  swap_read(e->sid, kpage);
+  e->status = IN_FRAME;
+  e->kpage = kpage;
+  e->sid = -1;
+  return true;
 }
 
 static bool load_all_zero(struct spmt_pt_entry *e) {

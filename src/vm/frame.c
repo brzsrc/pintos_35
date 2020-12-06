@@ -28,7 +28,7 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   if (kpage == NULL) {
     struct frame_node *evicted_node = frame_evict();
     if(evicted_node == NULL) {
-      struct frame_node *evicted_node = frame_evict();
+      evicted_node = frame_evict();
     }
 
     struct spmt_pt_entry *evicted_entry 
@@ -39,7 +39,7 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
     } else
     {
       evicted_entry->status = IN_SWAP;
-      swap_write(evicted_node->upage);
+      e->sid = swap_write(evicted_node->kpage);
     }
 
     frame_node_free(evicted_node->kpage);

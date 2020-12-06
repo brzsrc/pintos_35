@@ -5,8 +5,8 @@
 
 #include "../threads/palloc.h"
 #include "lib/kernel/hash.h"
-#include "page.h"
-#include "swap.h"
+#include "vm/page.h"
+#include "vm/swap.h"
 
 struct frame_node {
   void *kpage;
