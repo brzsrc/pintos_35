@@ -91,7 +91,8 @@ void frame_node_free(void *kpage) {
   struct frame_node *node = frame_find(kpage);
   if(node) {
     hash_delete(&frame_table, &node->hash_elem);
-    palloc_free_page(kpage);
+    if(kpage && kpage != 0xcccccccc)
+      palloc_free_page(kpage);
   }
   free(node);
 }

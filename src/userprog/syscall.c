@@ -446,16 +446,6 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
                         page_zero_bytes, true, &e)) {
       return MAP_FAILED;
     }
-    //     (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-
-    // // There must not be any identical entry
-    // if (!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
-    //   spmtpt_entry_free(&e->t->spmt_pt, e);
-    //   return MAP_FAILED;
-    // }
-    // spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
-    //                             current_offset, file);
-    
 
     list_push_back(&mmaped_file->mmaped_spmtpt_entries, &e->list_elem);
 
@@ -471,21 +461,8 @@ static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
                                    void *arg3 UNUSED) {
   check_valid_pointer(arg1);
   mapid_t mapid = *(mapid_t *)arg1;
-  // printf("map: %d\n", mapid);
   struct mmaped_file *mmaped_file = get_mmaped_file(mapid);
   syscall_munmap_helper(mmaped_file);
-  // if (!mmaped_file || !mmaped_file->file) {
-  //   return -1;
-  // }
-  // struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
-  // struct list_elem *e;
-  // for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
-  //   struct spmt_pt_entry *entry =
-  //       list_entry(e, struct spmt_pt_entry, list_elem);
-  //   munmap_entry(entry);
-  // }
-  // list_remove(&mmaped_file->elem);
-  // free(mmaped_file);
   return 0;
 }
 
@@ -507,11 +484,6 @@ unsigned int syscall_munmap_helper(struct mmaped_file *mmaped_file) {
 }
 
 static void munmap_entry(struct spmt_pt_entry *e) {
-  // printf("e->status: %d\n", e->status);
-  // printf("e->is_dirty: %d\n", e->is_dirty);
-  // printf("e->kpage: %p\n", e->kpage);
-  // printf("e->kpage == NULL: %d", e->kpage == NULL);
-  // printf("e->upage: %p\n", e->upage);
   switch (e->status) {
     case IN_FILE: {
       list_remove(&e->list_elem);
