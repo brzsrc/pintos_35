@@ -579,6 +579,10 @@ static bool setup_stack(void **esp) {
 
   if (install_page(upage, kpage, true)) {
     *esp = PHYS_BASE;
+    memset(kpage, 0, PGSIZE);
+    e->status = IN_FRAME;
+    e->kpage = kpage;
+    e->sid = -1;
     return true;
   }
 

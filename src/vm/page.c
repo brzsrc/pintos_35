@@ -137,6 +137,7 @@ static bool load_all_zero(struct spmt_pt_entry *e) {
   memset(kpage, 0, PGSIZE);
   e->status = IN_FRAME;
   e->kpage = kpage;
+  e->sid = -1;
   return true;
 }
 
