@@ -28,15 +28,16 @@ swap_init(void) {
 
     if(swap_bitmap == NULL) {
         PANIC("Error - Swap bitmap cannot be created.");
-        lock_init(&swap_lock);
     }
+
+    lock_init(&swap_lock);
 }
 
 /* Swap in spmtpt_entry. */
 void swap_in(struct spmt_pt_entry *spmtpt_entry) {
     for(size_t i = 0; i < PAGES; i++){
         bitmap_reset(swap_bitmap, spmtpt_entry->sector / PAGES);
-        block_read(swap_table, spmtpt_entry->sector + i, spmtpt_entry->frame_node->upage + BLOCK_SECTOR_SIZE * i);
+        block_read(swap_table, spmtpt_entry->sector + i, spmtpt_entry->upage + BLOCK_SECTOR_SIZE * i);
         spmtpt_entry->sector = -1;
     }
 };
@@ -46,7 +47,7 @@ bool swap_out(struct spmt_pt_entry *spmtpt_entry) {
     spmtpt_entry->sector = bitmap_scan_and_flip(swap_bitmap, 0, 1, false) * PAGES;
 
     for(size_t i = 0; i < PAGES; i++){
-        block_write(swap_table, spmtpt_entry->sector + i, spmtpt_entry->frame_node->upage + BLOCK_SECTOR_SIZE * i);
+        block_write(swap_table, spmtpt_entry->sector + i, spmtpt_entry->upage + BLOCK_SECTOR_SIZE * i);
     }
 
     return true;

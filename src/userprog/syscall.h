@@ -12,7 +12,15 @@ struct opened_file {
   struct list_elem elem;
 };
 
+struct mmaped_file {
+  mapid_t mapid;
+  struct file *file;
+  struct list_elem elem;
+  struct list mmaped_spmtpt_entries;
+};
+
 void syscall_init(void);
 void syscall_exit_helper(int exit_status);
+unsigned int syscall_munmap_helper(struct mmaped_file *mmaped_file);
 
 #endif /* userprog/syscall.h */

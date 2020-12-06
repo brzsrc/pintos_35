@@ -16,11 +16,14 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
+#include "vm/frame.h"
+#include "vm/page.h"
 
 // Function pointers to syscall functions
 typedef unsigned int (*syscall_func)(void *arg1, void *arg2, void *arg3);
 
-struct lock filesys_lock;
+// Only one exec at a time
+struct lock exec_lock;
 
 static void check_valid_pointer(const void *pointer);
 static int get_syscall_number(struct intr_frame *f);
@@ -41,10 +44,15 @@ static unsigned int syscall_write(void *, void *, void *);
 static unsigned int syscall_seek(void *, void *, void *);
 static unsigned int syscall_tell(void *, void *, void *);
 static unsigned int syscall_close(void *, void *, void *);
+static unsigned int syscall_mmap(void *, void *, void *);
+static unsigned int syscall_munmap(void *, void *, void *);
+static void munmap_entry(struct spmt_pt_entry *e);
 static syscall_func syscall_functions[MAX_SYSCALL_NO + 1];
+static int get_user(const uint8_t *uaddr);
+static bool put_user(uint8_t *udst, uint8_t byte);
 
 void syscall_init(void) {
-  lock_init(&filesys_lock);
+  lock_init(&exec_lock);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 
   // Initialize the array such that handlers can be
@@ -62,12 +70,33 @@ void syscall_init(void) {
   syscall_functions[SYS_SEEK] = syscall_seek;
   syscall_functions[SYS_TELL] = syscall_tell;
   syscall_functions[SYS_CLOSE] = syscall_close;
+  syscall_functions[SYS_MMAP] = syscall_mmap;
+  syscall_functions[SYS_MUNMAP] = syscall_munmap;
+}
+
+/* Reads a byte at user virtual address UADDR.
+UADDR must be below PHYS_BASE.
+Returns the byte value if successful, -1 if a segfault occurred. */
+static int get_user(const uint8_t *uaddr) {
+  int result;
+  asm("movl $1f, %0; movzbl %1, %0; 1:" : "=&a"(result) : "m"(*uaddr));
+  return result;
+}
+
+/* Writes BYTE to user address UDST.
+UDST must be below PHYS_BASE.
+Returns true if successful, false if a segfault occurred. */
+static bool put_user(uint8_t *udst, uint8_t byte) {
+  int error_code;
+  asm("movl $1f, %0; movb %b2, %1; 1:"
+      : "=&a"(error_code), "=m"(*udst)
+      : "q"(byte));
+  return error_code != -1;
 }
 
 static void check_valid_pointer(const void *pointer) {
-  struct thread *t = thread_current();
-  if (!pointer || !is_user_vaddr(pointer) ||
-      pagedir_get_page(t->pagedir, pointer) == NULL) {
+  // struct thread *t = thread_current();
+  if (!pointer || !is_user_vaddr(pointer) || get_user(pointer) == -1) {
     syscall_exit_helper(-1);
   }
 }
@@ -75,7 +104,7 @@ static void check_valid_pointer(const void *pointer) {
 /* Check arg Non null */
 static void check_valid_arg(const void *arg, unsigned int size) {
   const void *temp = arg;
-  for (unsigned i = 0; i <= size; i++) {
+  for (unsigned i = 0; i <= size; i += PGSIZE) {
     check_valid_pointer(temp);
     temp++;
   }
@@ -109,9 +138,27 @@ static struct opened_file *get_opened_file(int fd) {
   return NULL;
 }
 
+static struct mmaped_file *get_mmaped_file(mapid_t mapid) {
+  struct list *mmaped_files = &thread_current()->mmaped_files;
+  struct list_elem *e;
+  if (list_empty(mmaped_files)) {
+    return NULL;
+  }
+
+  for (e = list_begin(mmaped_files); e != list_end(mmaped_files);
+       e = list_next(e)) {
+    struct mmaped_file *mmaped_file = list_entry(e, struct mmaped_file, elem);
+    if (mmaped_file->mapid == mapid) {
+      return mmaped_file;
+    }
+  }
+  return NULL;
+}
+
 static void syscall_handler(struct intr_frame *f) {
   int sys_call_no = get_syscall_number(f);
 
+  thread_current()->esp = f->esp;
   void *arg1 = f->esp + 4;
   void *arg2 = f->esp + 8;
   void *arg3 = f->esp + 12;
@@ -127,7 +174,7 @@ static unsigned int syscall_halt(void *arg1 UNUSED, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   shutdown_power_off();
   NOT_REACHED();
-  return 0; 
+  return 0;
 }
 
 static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
@@ -135,7 +182,7 @@ static unsigned int syscall_exit(void *arg1, void *arg2 UNUSED,
   check_valid_pointer(arg1);
   int exit_status = *(int *)arg1;
   syscall_exit_helper(exit_status);
-  return 0; 
+  return 0;
 }
 
 void syscall_exit_helper(int exit_status) {
@@ -154,12 +201,11 @@ static unsigned int syscall_exec(void *arg1, void *arg2 UNUSED,
   const char *cmd_line = *(const char **)arg1;
   check_valid_arg(cmd_line, 0);
 
-  lock_acquire(&filesys_lock);
+  lock_acquire(&exec_lock);
   tid_t tid = process_execute(cmd_line);
-  lock_release(&filesys_lock);
-  return tid; 
+  lock_release(&exec_lock);
+  return tid;
 }
-
 
 static unsigned int syscall_wait(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
@@ -176,10 +222,8 @@ static unsigned int syscall_create(void *arg1, void *arg2, void *arg3 UNUSED) {
   unsigned int initial_size = *(unsigned int *)arg2;
   check_valid_arg(file, initial_size);
 
-  lock_acquire(&filesys_lock);
-  bool result = filesys_create(file, initial_size);
-  lock_release(&filesys_lock);
-  return result; 
+  bool result = filesys_sync_create(file, initial_size);
+  return result;
 }
 
 static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
@@ -188,46 +232,39 @@ static unsigned int syscall_remove(void *arg1, void *arg2 UNUSED,
   const char *file = *(char **)arg1;
   check_valid_arg(file, 0);
 
-  lock_acquire(&filesys_lock);
-  bool result = filesys_remove(file);
-  lock_release(&filesys_lock);
+  bool result = filesys_sync_remove(file);
   return result;
 }
 
-// Tested OK
 static unsigned int syscall_open(void *arg1, void *arg2 UNUSED,
                                  void *arg3 UNUSED) {
   check_valid_pointer(arg1);
   const char *file_name = *(char **)arg1;
   check_valid_arg(file_name, 0);
+  struct thread *t = thread_current();
 
-  lock_acquire(&filesys_lock);
-  struct file *file = filesys_open(file_name);
+  struct file *file = filesys_sync_open(file_name);
   if (!file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
   struct opened_file *opened_file = malloc(sizeof(struct opened_file));
   if (!opened_file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
-  lock_release(&filesys_lock);
-
   opened_file->file = file;
-  struct list *opened_files = &thread_current()->opened_files;
+  struct list *opened_files = &t->opened_files;
 
   if (list_empty(opened_files)) {
     opened_file->fd = 2;
+    t->opened_cnt = 2;
   } else {
-    opened_file->fd =
-        list_entry(list_back(opened_files), struct opened_file, elem)->fd + 1;
+    opened_file->fd = ++t->opened_cnt;
   }
   list_push_back(opened_files, &opened_file->elem);
 
-  return opened_file->fd; 
+  return opened_file->fd;
 }
 
 static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
@@ -240,9 +277,8 @@ static unsigned int syscall_filesize(void *arg1, void *arg2 UNUSED,
   if (!opened_file) {
     return -1;
   }
-  lock_acquire(&filesys_lock);
-  off_t result = file_length(opened_file->file);
-  lock_release(&filesys_lock);
+
+  off_t result = file_sync_length(opened_file->file);
 
   return result;
 }
@@ -260,18 +296,22 @@ static unsigned int syscall_read(void *arg1, void *arg2, void *arg3) {
     for (unsigned int i = 0; i < size; i++) {
       *(uint8_t *)(buffer + i) = input_getc();
     }
-    return size; 
+    return size;
   }
 
-  lock_acquire(&filesys_lock);
+  for (void *upage = pg_round_down(buffer); upage < buffer + size;
+       upage += PGSIZE) {
+    struct thread *t = thread_current();
+    struct spmt_pt_entry *entry = spmtpt_find(&t->spmt_pt, upage);
+    spmtpt_load_page(entry);
+  }
+
   struct opened_file *opened_file = get_opened_file(fd);
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
   off_t result = file_read(opened_file->file, buffer, size);
-  lock_release(&filesys_lock);
 
   return result;
 }
@@ -292,15 +332,19 @@ static unsigned int syscall_write(void *arg1, void *arg2, void *arg3) {
 
   struct opened_file *opened_file;
 
-  lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return -1;
   }
 
-  off_t off = file_write(opened_file->file, buffer, size);
-  lock_release(&filesys_lock);
+  for (void *upage = pg_round_down(buffer); upage < buffer + size;
+       upage += PGSIZE) {
+    struct thread *t = thread_current();
+    struct spmt_pt_entry *entry = spmtpt_find(&t->spmt_pt, upage);
+    spmtpt_load_page(entry);
+  }
+
+  off_t off = file_sync_write(opened_file->file, buffer, size);
   return off;
 }
 
@@ -312,21 +356,14 @@ static unsigned int syscall_seek(void *arg1, void *arg2, void *arg3 UNUSED) {
 
   struct opened_file *opened_file;
 
-  lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
 
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return 0;
   } else {
     file_seek(opened_file->file, position);
-    lock_release(&filesys_lock);
-    return 0; 
+    return 0;
   }
-
-  lock_acquire(&filesys_lock);
-  file_seek(opened_file->file, position);
-  lock_release(&filesys_lock);
 }
 
 static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
@@ -337,22 +374,14 @@ static unsigned int syscall_tell(void *arg1, void *arg2 UNUSED,
   struct opened_file *opened_file;
   unsigned int result;
 
-  lock_acquire(&filesys_lock);
   opened_file = get_opened_file(fd);
 
   if (!opened_file || !opened_file->file) {
-    lock_release(&filesys_lock);
     return 0;
   } else {
-    result = file_tell(opened_file->file);
-    lock_release(&filesys_lock);
-    return result; 
+    result = file_sync_tell(opened_file->file);
+    return result;
   }
-
-  lock_acquire(&filesys_lock);
-  off_t off = file_tell(opened_file->file);
-  lock_release(&filesys_lock);
-  return off;
 }
 
 static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
@@ -367,10 +396,153 @@ static unsigned int syscall_close(void *arg1, void *arg2 UNUSED,
     return -1;
   }
 
-  lock_acquire(&filesys_lock);
-  file_close(opened_file->file);
-  lock_release(&filesys_lock);
+  file_sync_close(opened_file->file);
+
   list_remove(&opened_file->elem);
   free(opened_file);
   return 0;
+}
+
+static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
+  check_valid_pointer(arg1);
+  check_valid_pointer(arg2);
+  int fd = *(int *)arg1;
+  void *upage = *(void **)arg2;
+
+  struct opened_file *opened_file = get_opened_file(fd);
+  struct file *file;
+  off_t file_size;
+
+  if (!(opened_file && opened_file->file)) {
+    // No such file opened
+    return MAP_FAILED;
+  }
+
+  file = file_reopen(opened_file->file);
+  file_size = file_length(file);
+
+  if (!file || file_size == 0 || upage == 0 || fd == STDIN_FILENO ||
+      fd == STDOUT_FILENO || pg_ofs(upage) != 0) {
+    return MAP_FAILED;
+  }
+
+  struct thread *t = thread_current();
+  struct mmaped_file *mmaped_file =
+      (struct mmaped_file *)malloc(sizeof(struct mmaped_file));
+  mmaped_file->mapid = ++t->mmaped_cnt;
+  mmaped_file->file = file;
+  list_init(&mmaped_file->mmaped_spmtpt_entries);
+  list_push_back(&t->mmaped_files, &mmaped_file->elem);
+
+  uint32_t read_bytes = file_size;
+  off_t current_offset = 0;
+
+  while (read_bytes > 0) {
+    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+    struct spmt_pt_entry *e;
+    if (!load_page_lazy(file, current_offset, upage, page_read_bytes,
+                        page_zero_bytes, true, &e)) {
+      return MAP_FAILED;
+    }
+
+    // struct spmt_pt_entry *e =
+    //     (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
+    // // There must not be any identical entry
+    // if (!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
+    //   spmtpt_entry_free(&e->t->spmt_pt, e);
+    //   return MAP_FAILED;
+    // }
+    // spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
+    //                             current_offset, file);
+
+    list_push_back(&mmaped_file->mmaped_spmtpt_entries, &e->list_elem);
+
+    /* Advance. */
+    read_bytes -= page_read_bytes;
+    upage += PGSIZE;
+    current_offset += PGSIZE;
+  }
+  return mmaped_file->mapid;
+}
+
+static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
+                                   void *arg3 UNUSED) {
+  check_valid_pointer(arg1);
+  mapid_t mapid = *(mapid_t *)arg1;
+  // printf("map: %d\n", mapid);
+  struct mmaped_file *mmaped_file = get_mmaped_file(mapid);
+  syscall_munmap_helper(mmaped_file);
+  // if (!mmaped_file || !mmaped_file->file) {
+  //   return -1;
+  // }
+  // struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
+  // struct list_elem *e;
+  // for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
+  //   struct spmt_pt_entry *entry =
+  //       list_entry(e, struct spmt_pt_entry, list_elem);
+  //   munmap_entry(entry);
+  // }
+  // list_remove(&mmaped_file->elem);
+  // free(mmaped_file);
+  return 0;
+}
+
+// Returns 0 for successful un map, -1 for failure
+unsigned int syscall_munmap_helper(struct mmaped_file *mmaped_file) {
+  if (!mmaped_file || !mmaped_file->file) {
+    return -1;
+  }
+  struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
+  struct list_elem *e;
+  for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
+    struct spmt_pt_entry *entry =
+        list_entry(e, struct spmt_pt_entry, list_elem);
+    munmap_entry(entry);
+  }
+  list_remove(&mmaped_file->elem);
+  free(mmaped_file);
+  return 0;
+}
+
+static void munmap_entry(struct spmt_pt_entry *e) {
+  // printf("e->status: %d\n", e->status);
+  // printf("e->is_dirty: %d\n", e->is_dirty);
+  // printf("e->kpage: %p\n", e->kpage);
+  // printf("e->kpage == NULL: %d", e->kpage == NULL);
+  // printf("e->upage: %p\n", e->upage);
+  switch (e->status) {
+    case IN_FILE: {
+      list_remove(&e->list_elem);
+      hash_delete(&e->t->spmt_pt, &e->hash_elem);
+      // free(e);
+      // spmtpt_entry_free(&e->t->spmt_pt, e);
+      break;
+    }
+
+    case IN_FRAME: {
+      // if (e->is_dirty) {
+      // idk why its e->upage here 我抄的
+      // for now let's write back to file no matter it's dirty or not
+      // since we haven't implement dirty bit yet
+      file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
+      // }
+      list_remove(&e->list_elem);
+      frame_node_free(e->kpage);
+      pagedir_clear_page(e->t->pagedir, e->upage);
+      hash_delete(&e->t->spmt_pt, &e->hash_elem);
+      break;
+    }
+
+    case IN_SWAP:
+      break;
+
+    case ALL_ZERO:
+      break;
+
+    default:
+      break;
+  }
 }
