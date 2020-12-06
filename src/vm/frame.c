@@ -34,7 +34,7 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
     struct spmt_pt_entry *evicted_entry 
       = spmtpt_find(&evicted_node->t->spmt_pt, evicted_node->upage); 
 
-    if(!evicted_entry->is_dirty || !evicted_entry->writable) {
+    if(!pagedir_is_dirty(e->t->pagedir, kpage) || !evicted_entry->writable) {
         evicted_entry->status = IN_FILE;
     } else
     {
@@ -53,6 +53,7 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   new_node->t = e->t;
   new_node->referenced = true;
   hash_insert(&frame_table, &new_node->hash_elem);
+  pagedir_set_dirty(e->t->pagedir, kpage, false);
   return kpage;
 }
 

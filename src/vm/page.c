@@ -170,11 +170,10 @@ static bool load_from_file(struct spmt_pt_entry *e) {
     memset(kpage + e->page_read_bytes, 0, e->page_zero_bytes);
     e->status = IN_FRAME;
     e->kpage = kpage;
-    // printf("e->kpage1: %p\n", e->kpage);
-    // printf("e->upage1: %p\n", e->upage);
-    // printf("....................................\n");
+    e->sid = -1;
     return true;
-  } else {
+  } 
+  else {
     // Something went wrong
     NOT_REACHED();
     return false;
