@@ -213,3 +213,36 @@ static bool install_page(struct spmt_pt_entry *e, void *kpage) {
   return (pagedir_get_page(e->t->pagedir, e->upage) == NULL &&
           pagedir_set_page(e->t->pagedir, e->upage, kpage, e->writable));
 }
+
+/* Lazily Loads a page starting at offset OFS in FILE at address
+   UPAGE.
+
+   The pages initialized by this function must be writable by the
+   user process if WRITABLE is true, read-only otherwise.
+
+   Return true and sets entry to e if successful, false if a memory allocation
+   error or disk read error occurs. */
+bool load_page_lazy(struct file *file, off_t ofs, uint8_t *upage,
+                    size_t page_read_bytes, size_t page_zero_bytes,
+                    bool writable, struct spmt_pt_entry **entry) {
+  ASSERT(pg_ofs(upage) == 0);
+
+  off_t current_offset = ofs;
+
+  /* Check if virtual page already allocated */
+  struct thread *t = thread_current();
+  struct spmt_pt_entry *e =
+      (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
+  // There must not be any identical entry
+  if (!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
+    spmtpt_entry_free(&e->t->spmt_pt, e);
+    return false;
+  }
+
+  spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
+                              current_offset, file);
+
+  *entry = e;
+  return true;
+}

@@ -434,23 +434,30 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   list_init(&mmaped_file->mmaped_spmtpt_entries);
   list_push_back(&t->mmaped_files, &mmaped_file->elem);
 
-  off_t read_bytes = file_size;
+  uint32_t read_bytes = file_size;
   off_t current_offset = 0;
 
   while (read_bytes > 0) {
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    struct spmt_pt_entry *e =
-        (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-
-    // There must not be any identical entry
-    if (!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
-      spmtpt_entry_free(&e->t->spmt_pt, e);
+    struct spmt_pt_entry *e;
+    if (!load_page_lazy(file, current_offset, upage, page_read_bytes,
+                        page_zero_bytes, true, &e)) {
       return MAP_FAILED;
     }
-    spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
-                                current_offset, file);
+
+    // struct spmt_pt_entry *e =
+    //     (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
+    // // There must not be any identical entry
+    // if (!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
+    //   spmtpt_entry_free(&e->t->spmt_pt, e);
+    //   return MAP_FAILED;
+    // }
+    // spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
+    //                             current_offset, file);
+
     list_push_back(&mmaped_file->mmaped_spmtpt_entries, &e->list_elem);
 
     /* Advance. */

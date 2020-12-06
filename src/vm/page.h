@@ -8,7 +8,6 @@
 #include "lib/kernel/hash.h"
 #include "threads/thread.h"
 
-
 enum upage_status { ALL_ZERO, IN_FILE, IN_SWAP, IN_FRAME };
 
 /* the entry in the supplymental page table */
@@ -42,6 +41,11 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
 void spmtpt_fill_in_load_details(struct spmt_pt_entry *e,
                                  size_t page_read_bytes, size_t page_zero_bytes,
                                  off_t current_offset, struct file *file);
+
+bool load_page_lazy(struct file *file, off_t ofs, uint8_t *upage,
+                    size_t page_read_bytes, size_t page_zero_bytes,
+                    bool writable, struct spmt_pt_entry **entry);
+
 // To be called in process exit
 void spmtpt_free(struct hash *spmt_pt);
 bool spmtpt_load_page(struct spmt_pt_entry *e);
