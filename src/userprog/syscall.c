@@ -522,13 +522,8 @@ static void munmap_entry(struct spmt_pt_entry *e) {
     }
 
     case IN_FRAME: {
-      // printf("pagedir_is_dirty(e->t->pagedir, e->kpage): %d", pagedir_is_dirty(e->t->pagedir, e->kpage));
-      // printf("pagedir_is_dirty(e->t->pagedir, e->upage): %d", pagedir_is_dirty(e->t->pagedir, e->upage));
       if (pagedir_is_dirty(e->t->pagedir, e->upage)) {
-      // idk why its e->upage here 我抄的
-      // for now let's write back to file no matter it's dirty or not
-      // since we haven't implement dirty bit yet
-        file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
+        file_write_at(e->file, e->kpage, e->page_read_bytes, e->current_offset);
       }
       list_remove(&e->list_elem);
       frame_node_free(e->kpage);
