@@ -211,8 +211,16 @@ void process_exit(void) {
   struct thread *cur = thread_current();
   uint32_t *pd;
   struct list *opened_files = &cur->opened_files;
+  struct list *mmaped_files = &cur->mmaped_files;
   struct list *childs = &cur->childs;
   struct child *child = cur->child;
+
+  /* free all the mmaped files in current thread's mmaped file list */
+  while (!list_empty(mmaped_files)) {
+    struct list_elem *e = list_pop_front(mmaped_files);
+    struct mmaped_file *mmaped_file = list_entry(e, struct mmaped_file, elem);
+    syscall_munmap_helper(mmaped_file);
+  }
 
   /* free all the opened files in current thread's opened file list */
   while (!list_empty(opened_files)) {

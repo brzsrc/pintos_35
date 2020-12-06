@@ -474,7 +474,24 @@ static unsigned int syscall_munmap(void *arg1, void *arg2 UNUSED,
   mapid_t mapid = *(mapid_t *)arg1;
   // printf("map: %d\n", mapid);
   struct mmaped_file *mmaped_file = get_mmaped_file(mapid);
+  syscall_munmap_helper(mmaped_file);
+  // if (!mmaped_file || !mmaped_file->file) {
+  //   return -1;
+  // }
+  // struct list *entries = &mmaped_file->mmaped_spmtpt_entries;
+  // struct list_elem *e;
+  // for (e = list_begin(entries); e != list_end(entries); e = list_next(e)) {
+  //   struct spmt_pt_entry *entry =
+  //       list_entry(e, struct spmt_pt_entry, list_elem);
+  //   munmap_entry(entry);
+  // }
+  // list_remove(&mmaped_file->elem);
+  // free(mmaped_file);
+  return 0;
+}
 
+// Returns 0 for successful un map, -1 for failure
+unsigned int syscall_munmap_helper(struct mmaped_file *mmaped_file) {
   if (!mmaped_file || !mmaped_file->file) {
     return -1;
   }

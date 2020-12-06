@@ -21,5 +21,6 @@ struct mmaped_file {
 
 void syscall_init(void);
 void syscall_exit_helper(int exit_status);
+unsigned int syscall_munmap_helper(struct mmaped_file *mmaped_file);
 
 #endif /* userprog/syscall.h */
