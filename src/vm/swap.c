@@ -38,7 +38,6 @@ swap_read(sid_t sid, void *page) {
 /* Write to swap table, and return swap id. */
 sid_t
 swap_write(void *page) {
-
     sid_t sid = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
     lock_acquire(&swap_lock);
     for(size_t i = 0; i < SECTOR_NUM; i++) {

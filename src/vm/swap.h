@@ -7,7 +7,7 @@
 typedef int sid_t;
 
 void swap_init(void);
-void swap_in(struct spmt_pt_entry *e);
-bool swap_out(struct spmt_pt_entry *e);
+void swap_read(sid_t sid, void *page);
+sid_t swap_write(void *page);
 
 #endif /* vm/swap.h */
