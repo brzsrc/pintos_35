@@ -49,11 +49,10 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   struct frame_node *new_node =
       (struct frame_node *)malloc(sizeof(struct frame_node));
   new_node->upage = e->upage;
-  new_node->kpage = e->kpage;
+  new_node->kpage = kpage;
   new_node->t = e->t;
   new_node->referenced = true;
   hash_insert(&frame_table, &new_node->hash_elem);
-  pagedir_set_dirty(e->t->pagedir, kpage, false);
   return kpage;
 }
 
@@ -65,10 +64,10 @@ static struct frame_node *frame_evict(void) {
   while (hash_next (&i))
   {
     struct frame_node *node = hash_entry (hash_cur (&i), struct frame_node, hash_elem);
-    if(!node->referenced && !node->pinned) {
+    if(!pagedir_is_accessed (node->t->pagedir, node->kpage) && !node->pinned) {
       return node;
     } 
-    node->referenced = false;
+    pagedir_set_accessed (node->t->pagedir, node->kpage, false);
   }
   return NULL;
 }

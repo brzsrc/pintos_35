@@ -95,10 +95,6 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   return false;
 }
 
-// static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t) {
-//   swap_out(e);
-// }
-
 static bool load_from_swap_table(struct spmt_pt_entry *e) {
   void *kpage = frame_alloc(PAL_USER, e);
   if (kpage == NULL) {
@@ -117,6 +113,9 @@ static bool load_from_swap_table(struct spmt_pt_entry *e) {
   e->status = IN_FRAME;
   e->kpage = kpage;
   e->sid = -1;
+
+  pagedir_set_dirty(e->t->pagedir, kpage, false);
+  pagedir_set_accessed (e->t->pagedir, kpage, false);
   return true;
 }
 
@@ -138,6 +137,9 @@ static bool load_all_zero(struct spmt_pt_entry *e) {
   e->status = IN_FRAME;
   e->kpage = kpage;
   e->sid = -1;
+
+  pagedir_set_dirty(e->t->pagedir, kpage, false);
+  pagedir_set_accessed (e->t->pagedir, kpage, false);
   return true;
 }
 
@@ -172,6 +174,9 @@ static bool load_from_file(struct spmt_pt_entry *e) {
     e->status = IN_FRAME;
     e->kpage = kpage;
     e->sid = -1;
+
+    pagedir_set_dirty(e->t->pagedir, kpage, false);
+    pagedir_set_accessed (e->t->pagedir, kpage, false);
     return true;
   } 
   else {
