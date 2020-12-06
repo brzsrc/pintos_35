@@ -413,15 +413,14 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   struct file *file;
   off_t file_size;
 
-  if(opened_file && opened_file->file) {
+  if (opened_file && opened_file->file) {
     file = file_reopen(opened_file->file);
     file_size = file_length(file);
   } else {
     return MAP_FAILED;
   }
-  
 
-  if (!file || file_size == 0 || upage == 0 || fd == STDIN_FILENO || 
+  if (!file || file_size == 0 || upage == 0 || fd == STDIN_FILENO ||
       fd == STDOUT_FILENO || pg_ofs(upage) != 0) {
     return MAP_FAILED;
   }
@@ -441,9 +440,9 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    struct spmt_pt_entry *e 
-      = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-    
+    struct spmt_pt_entry *e =
+        (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
     // There must not be any identical entry
     if (!spmtpt_entry_init(e, upage, true, IN_FILE, t)) {
       spmtpt_entry_free(&e->t->spmt_pt, e);
@@ -490,30 +489,27 @@ static void munmap_entry(struct spmt_pt_entry *e) {
   // printf("e->kpage == NULL: %d", e->kpage == NULL);
   // printf("e->upage: %p\n", e->upage);
   switch (e->status) {
-    case IN_FILE: 
-    {
+    case IN_FILE: {
       list_remove(&e->list_elem);
       hash_delete(&e->t->spmt_pt, &e->hash_elem);
       // free(e);
       // spmtpt_entry_free(&e->t->spmt_pt, e);
       break;
     }
-      
-    case IN_FRAME:
-    {
+
+    case IN_FRAME: {
       // if (e->is_dirty) {
-        // idk why its e->upage here 我抄的
-        //for now let's write back to file no matter it's dirty or not
-        // since we haven't implement dirty bit yet
-        file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
+      // idk why its e->upage here 我抄的
+      // for now let's write back to file no matter it's dirty or not
+      // since we haven't implement dirty bit yet
+      file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
       // }
       list_remove(&e->list_elem);
-      frame_node_free(e->kpage); 
+      frame_node_free(e->kpage);
       pagedir_clear_page(e->t->pagedir, e->upage);
       hash_delete(&e->t->spmt_pt, &e->hash_elem);
       break;
     }
-      
 
     case IN_SWAP:
       break;

@@ -179,8 +179,7 @@ static void page_fault(struct intr_frame *f) {
       }
     }
 
-    if (spmtpt_load_page(e))
-      return;
+    if (spmtpt_load_page(e)) return;
   }
 
   /* if the page fault is not caused by stack_growth/load_page/present?,
@@ -196,7 +195,7 @@ static void page_fault(struct intr_frame *f) {
 
   /* for page_fault cannot be handled, kill it */
   printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading", user ? "user" : "kernel");
+         not_present ? "not present" : "rights violation",
+         write ? "writing" : "reading", user ? "user" : "kernel");
   kill(f);
 }

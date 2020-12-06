@@ -218,7 +218,7 @@ void process_exit(void) {
   while (!list_empty(opened_files)) {
     struct list_elem *e = list_pop_front(opened_files);
     struct opened_file *opened_file = list_entry(e, struct opened_file, elem);
-  
+
     if (opened_file->file) {
       file_sync_close(opened_file->file);
     }
@@ -537,17 +537,17 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
     /* Check if virtual page already allocated */
     struct thread *t = thread_current();
-    struct spmt_pt_entry *e 
-      = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
-    
+    struct spmt_pt_entry *e =
+        (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+
     // There must not be any identical entry
-    if(!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
+    if (!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
       spmtpt_entry_free(&e->t->spmt_pt, e);
       return false;
     }
 
-    spmtpt_fill_in_load_details(e, page_read_bytes,
-                             page_zero_bytes, current_offset, file);
+    spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
+                                current_offset, file);
 
     /* Advance. */
     read_bytes -= page_read_bytes;
@@ -557,7 +557,6 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
   }
   return true;
 }
-
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
@@ -572,16 +571,15 @@ static bool setup_stack(void **esp) {
     success = install_page(upage, kpage, true);
     if (success) {
       *esp = PHYS_BASE;
-      struct spmt_pt_entry *e 
-        = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+      struct spmt_pt_entry *e =
+          (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
       // There must not be any identical entry
-      if(!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
+      if (!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
         free(e);
         return false;
       }
-    }
-    else
+    } else
       palloc_free_page(kpage);
   }
   return success;
@@ -604,4 +602,3 @@ static bool install_page(void *upage, void *kpage, bool writable) {
   return (pagedir_get_page(t->pagedir, upage) == NULL &&
           pagedir_set_page(t->pagedir, upage, kpage, writable));
 }
-

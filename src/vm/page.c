@@ -192,7 +192,6 @@ void spmtpt_free(struct hash *spmt_pt) {
 
 void spmtpt_entry_free(struct hash *spmt_pt,
                        struct spmt_pt_entry *spmtpt_entry) {
-  
   // TODO
   // Should use frame alloc free page
   hash_delete(spmt_pt, &spmtpt_entry->hash_elem);
