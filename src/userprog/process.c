@@ -243,9 +243,7 @@ void process_exit(void) {
   // /* Release the executable file */
   if (cur->file && cur->is_user_process) {
     file_allow_write(cur->file);
-    lock_acquire(&exec_lock);
     file_sync_close(cur->file);
-    lock_release(&exec_lock);
   }
 
   /* update current thread's child and

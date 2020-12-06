@@ -413,12 +413,13 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
   struct file *file;
   off_t file_size;
 
-  if (opened_file && opened_file->file) {
-    file = file_reopen(opened_file->file);
-    file_size = file_length(file);
-  } else {
+  if (!(opened_file && opened_file->file)) {
+    // No such file opened
     return MAP_FAILED;
   }
+
+  file = file_reopen(opened_file->file);
+  file_size = file_length(file);
 
   if (!file || file_size == 0 || upage == 0 || fd == STDIN_FILENO ||
       fd == STDOUT_FILENO || pg_ofs(upage) != 0) {

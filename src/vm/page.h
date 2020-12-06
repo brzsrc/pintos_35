@@ -8,7 +8,6 @@
 #include "lib/kernel/hash.h"
 #include "threads/thread.h"
 
-extern struct lock exec_lock;
 
 enum upage_status { ALL_ZERO, IN_FILE, IN_SWAP, IN_FRAME };
 
