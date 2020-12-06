@@ -11,50 +11,66 @@
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
-#include "page.h"
-// #include "swap.h"
+#include "kernel/hash.h"
 
 struct hash frame_table;
 
 static unsigned frame_hash(const struct hash_elem *f_, void *aux UNUSED);
 static bool frame_less(const struct hash_elem *a_, const struct hash_elem *b_,
                        void *aux UNUSED);
+static struct frame_node *frame_evict(void);
 
 void frame_init(void) { hash_init(&frame_table, frame_hash, frame_less, NULL); }
 
-void *frame_alloc(enum palloc_flags pflag, void *upage, struct thread *t) {
+void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   void *kpage = palloc_get_page(PAL_USER | pflag);
-//   if (kpage == NULL) {
-//     // use eviction algorithm to get a kpage to be evicted in the frame table
-//     //write the algorithm in func frame_evict();
-//     //...
-//     // struct frame_node *evicted_node = frame_evict();
-//     struct frame_node *evicted_node;
-//     struct spmt_pt_entry *evicted_entry = spmtpt_find(evicted_node->t, evicted_node->upage); 
-//     if(!evicted_entry->is_dirty || !evicted_entry->writable) {
-//         evicted_entry->status = IN_FILE;
-//     } else
-//     {
-//         evicted_entry->status = IN_SWAP;
-//         // swap_in(evicted_entry);
-//     }
-//     //frame_delete_node: delete the evicted_node in frame
-//     //padedir delete the evicted_node
-//   }
+
+  if (kpage == NULL) {
+    struct frame_node *evicted_node = frame_evict();
+    if(evicted_node == NULL) {
+      struct frame_node *evicted_node = frame_evict();
+    }
+
+    struct spmt_pt_entry *evicted_entry 
+      = spmtpt_find(&evicted_node->t->spmt_pt, evicted_node->upage); 
+
+    if(!evicted_entry->is_dirty || !evicted_entry->writable) {
+        evicted_entry->status = IN_FILE;
+    } else
+    {
+      evicted_entry->status = IN_SWAP;
+      swap_write(evicted_node->upage);
+    }
+
+    frame_node_free(evicted_node->kpage);
+    pagedir_clear_page(evicted_entry->t->pagedir, evicted_entry->upage);
+  }
 
   struct frame_node *new_node =
       (struct frame_node *)malloc(sizeof(struct frame_node));
-  new_node->upage = upage;
-  new_node->kpage = kpage;
-  new_node->t = t;
+  new_node->upage = e->upage;
+  new_node->kpage = e->kpage;
+  new_node->t = e->t;
+  new_node->referenced = true;
   hash_insert(&frame_table, &new_node->hash_elem);
   return kpage;
 }
 
-// struct frame_node *frame_evict() {
-//     // somehow get the evicted kpage;
+static struct frame_node *frame_evict(void) {
+    // somehow get the evicted kpage;
+  struct hash_iterator i;
 
-// }
+  hash_first (&i, &frame_table);
+  while (hash_next (&i))
+  {
+    struct frame_node *node = hash_entry (hash_cur (&i), struct frame_node, hash_elem);
+    if(!node->referenced && !node->pinned) {
+      return node;
+    } 
+    node->referenced = false;
+  }
+  return NULL;
+}
 
 /* Returns a hash value for frame_node f. */
 static unsigned frame_hash(const struct hash_elem *f_, void *aux UNUSED) {

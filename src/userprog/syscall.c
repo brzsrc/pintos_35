@@ -446,8 +446,6 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
                         page_zero_bytes, true, &e)) {
       return MAP_FAILED;
     }
-
-    // struct spmt_pt_entry *e =
     //     (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
     // // There must not be any identical entry
@@ -457,6 +455,7 @@ static unsigned int syscall_mmap(void *arg1, void *arg2, void *arg3 UNUSED) {
     // }
     // spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
     //                             current_offset, file);
+    
 
     list_push_back(&mmaped_file->mmaped_spmtpt_entries, &e->list_elem);
 
@@ -527,7 +526,7 @@ static void munmap_entry(struct spmt_pt_entry *e) {
       // idk why its e->upage here 我抄的
       // for now let's write back to file no matter it's dirty or not
       // since we haven't implement dirty bit yet
-      file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
+        file_write_at(e->file, e->upage, e->page_read_bytes, e->current_offset);
       // }
       list_remove(&e->list_elem);
       frame_node_free(e->kpage);

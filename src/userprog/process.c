@@ -561,25 +561,30 @@ static bool setup_stack(void **esp) {
   uint8_t *kpage;
   uint8_t *upage = ((uint8_t *)PHYS_BASE) - PGSIZE;
   struct thread *t = thread_current();
-  bool success = false;
 
-  kpage = frame_alloc(PAL_USER | PAL_ZERO, upage, t);
-  if (kpage != NULL) {
-    success = install_page(upage, kpage, true);
-    if (success) {
-      *esp = PHYS_BASE;
-      struct spmt_pt_entry *e =
-          (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+  struct spmt_pt_entry *e =
+      (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
-      // There must not be any identical entry
-      if (!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
-        free(e);
-        return false;
-      }
-    } else
-      palloc_free_page(kpage);
+  // There must not be any identical entry
+  if (!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
+    free(e);
+    return false;
   }
-  return success;
+
+  kpage = frame_alloc(PAL_USER | PAL_ZERO, e);
+  if(kpage == NULL) {
+    spmtpt_entry_free(&t->spmt_pt, e);
+    return false;
+  } 
+
+  if (install_page(upage, kpage, true)) {
+    *esp = PHYS_BASE;
+    return true;
+  }
+
+  spmtpt_entry_free(&t->spmt_pt, e);
+  palloc_free_page(kpage);
+  return false;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel

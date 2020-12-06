@@ -47,6 +47,7 @@
 #include "filesys/fsutil.h"
 #endif
 #include "vm/frame.h"
+#include "vm/swap.h"
 
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
@@ -113,8 +114,6 @@ int main(void) {
   gdt_init();
 #endif
 
-  frame_init();
-
   /* Initialize interrupt handlers. */
   intr_init();
   timer_init();
@@ -137,6 +136,8 @@ int main(void) {
   filesys_init(format_filesys);
 #endif
 
+  frame_init();
+  swap_init();
   printf("Boot complete.\n");
 
   /* Run actions specified on kernel command line. */

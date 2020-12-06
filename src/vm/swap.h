@@ -7,7 +7,7 @@
 typedef int sid_t;
 
 void swap_init(void);
-void swap_read(sid_t sid, void *page);
-sid_t swap_write(void *page);
+void swap_read(sid_t sid, void *upage);
+sid_t swap_write(void *upage);
 
 #endif /* vm/swap.h */

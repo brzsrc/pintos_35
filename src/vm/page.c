@@ -12,8 +12,6 @@
 #include "userprog/syscall.h"
 #include "vm/frame.h"
 
-// #include "swap.h"
-
 static unsigned spmtpt_hash(const struct hash_elem *spmtpt_, void *aux UNUSED);
 static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
@@ -21,6 +19,7 @@ static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
 static bool load_from_file(struct spmt_pt_entry *e);
 static bool install_page(struct spmt_pt_entry *e, void *kpage);
 static bool load_all_zero(struct spmt_pt_entry *e);
+static bool load_from_swap_table(struct spmt_pt_entry *e);
 
 void spmtpt_init(struct hash *spmt_pt) {
   hash_init(spmt_pt, spmtpt_hash, spmtpt_less, NULL);
@@ -99,8 +98,25 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
 //   swap_out(e);
 // }
 
+static bool load_from_swap_table(struct spmt_pt_entry *e) {
+  void *kpage = frame_alloc(PAL_USER, e);
+  if (kpage == NULL) {
+    return false;
+  }
+
+  /* Add the page to the process's address space. */
+  if (!install_page(e, kpage)) {
+    NOT_REACHED();
+    spmtpt_entry_free(&e->t->spmt_pt, e);
+    frame_node_free(kpage);
+    return false;
+  }
+
+  // swap_read(, e->upage);
+}
+
 static bool load_all_zero(struct spmt_pt_entry *e) {
-  void *kpage = frame_alloc(PAL_ZERO, e, e->t);
+  void *kpage = frame_alloc(PAL_ZERO, e);
   if (kpage == NULL) {
     return false;
   }
@@ -123,7 +139,7 @@ static bool load_from_file(struct spmt_pt_entry *e) {
   /* Check if virtual page already allocated */
   uint8_t *kpage = pagedir_get_page(e->t->pagedir, e->upage);
   if (kpage == NULL) {
-    kpage = frame_alloc(PAL_USER, e, e->t);
+    kpage = frame_alloc(PAL_USER, e);
     if (kpage == NULL) {
       return false;
     }

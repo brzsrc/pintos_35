@@ -7,6 +7,7 @@
 #include "filesys/off_t.h"
 #include "lib/kernel/hash.h"
 #include "threads/thread.h"
+#include "vm/swap.h"
 
 enum upage_status { ALL_ZERO, IN_FILE, IN_SWAP, IN_FRAME };
 
@@ -21,6 +22,8 @@ struct spmt_pt_entry {
   void *upage;
   void *kpage;
   struct thread *t;
+
+  sid_t sid;
 
   // value: essential details to load a segment
   size_t page_read_bytes;

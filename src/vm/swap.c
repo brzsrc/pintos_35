@@ -1,6 +1,5 @@
 #include <debug.h>
 #include <stdio.h>
-#include <bitmap.h>
 
 #include "vm/swap.h"
 #include "vm/frame.h"
@@ -8,6 +7,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "devices/block.h"
+#include "kernel/bitmap.h"
 
 #define SECTOR_NUM (PGSIZE / BLOCK_SECTOR_SIZE)
 
@@ -25,10 +25,10 @@ swap_init(void) {
 
 /* Read from swap table. */
 void 
-swap_read(sid_t sid, void *page) {
+swap_read(sid_t sid, void *upage) {
     lock_acquire(&swap_lock);
     for(size_t i = 0; i < SECTOR_NUM; i++) {
-        block_read(swap_table, sid * SECTOR_NUM + i, page + (BLOCK_SECTOR_SIZE * i));
+        block_read(swap_table, sid * SECTOR_NUM + i, upage + (BLOCK_SECTOR_SIZE * i));
     }
     lock_release(&swap_lock);
 
@@ -37,11 +37,11 @@ swap_read(sid_t sid, void *page) {
 
 /* Write to swap table, and return swap id. */
 sid_t
-swap_write(void *page) {
+swap_write(void *upage) {
     sid_t sid = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
     lock_acquire(&swap_lock);
     for(size_t i = 0; i < SECTOR_NUM; i++) {
-        block_write(swap_table, sid * SECTOR_NUM + i, page + (BLOCK_SECTOR_SIZE * i));
+        block_write(swap_table, sid * SECTOR_NUM + i, upage + (BLOCK_SECTOR_SIZE * i));
     }
     lock_release(&swap_lock);
 
