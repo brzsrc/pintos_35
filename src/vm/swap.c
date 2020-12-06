@@ -9,7 +9,7 @@
 #include "threads/vaddr.h"
 #include "devices/block.h"
 
-#define PAGES (PGSIZE / BLOCK_SECTOR_SIZE)
+#define SECTOR_NUM (PGSIZE / BLOCK_SECTOR_SIZE)
 
 struct block *swap_table;
 struct bitmap *swap_bitmap;
@@ -19,36 +19,33 @@ struct lock swap_lock;
 void
 swap_init(void) {
     swap_table = block_get_role(BLOCK_SWAP);
-    if(swap_table == NULL) {
-        swap_bitmap = bitmap_create(0);
-        printf("Warning - Swap table is empty.\n");
-    } else {
-        swap_bitmap = bitmap_create(block_size(swap_table) / PAGES);
-    }
-
-    if(swap_bitmap == NULL) {
-        PANIC("Error - Swap bitmap cannot be created.");
-    }
-
+    swap_bitmap = bitmap_create(block_size(swap_table) / SECTOR_NUM);
     lock_init(&swap_lock);
 }
 
-/* Swap in spmtpt_entry. */
-void swap_in(struct spmt_pt_entry *spmtpt_entry) {
-    for(size_t i = 0; i < PAGES; i++){
-        bitmap_reset(swap_bitmap, spmtpt_entry->sector / PAGES);
-        block_read(swap_table, spmtpt_entry->sector + i, spmtpt_entry->upage + BLOCK_SECTOR_SIZE * i);
-        spmtpt_entry->sector = -1;
+/* Read from swap table. */
+void 
+swap_read(sid_t sid, void *page) {
+    lock_acquire(&swap_lock);
+    for(size_t i = 0; i < SECTOR_NUM; i++) {
+        block_read(swap_table, sid * SECTOR_NUM + i, page + (BLOCK_SECTOR_SIZE * i));
     }
+    lock_release(&swap_lock);
+
+    bitmap_reset (swap_bitmap, sid);
 };
 
-/* Swap out spmtpt_entry. */
-bool swap_out(struct spmt_pt_entry *spmtpt_entry) {
-    spmtpt_entry->sector = bitmap_scan_and_flip(swap_bitmap, 0, 1, false) * PAGES;
+/* Write to swap table, and return swap id. */
+sid_t
+swap_write(void *page) {
 
-    for(size_t i = 0; i < PAGES; i++){
-        block_write(swap_table, spmtpt_entry->sector + i, spmtpt_entry->upage + BLOCK_SECTOR_SIZE * i);
+    sid_t sid = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
+    lock_acquire(&swap_lock);
+    for(size_t i = 0; i < SECTOR_NUM; i++) {
+        block_write(swap_table, sid * SECTOR_NUM + i, page + (BLOCK_SECTOR_SIZE * i));
     }
+    lock_release(&swap_lock);
 
-    return true;
+    bitmap_set(swap_bitmap, sid, true);
+    return sid;
 }

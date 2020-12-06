@@ -18,8 +18,6 @@ struct spmt_pt_entry {
   bool is_dirty;
   bool writable;
 
-  block_sector_t sector;
-
   void *upage;
   void *kpage;
   struct thread *t;
