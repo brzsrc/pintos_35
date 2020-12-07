@@ -148,6 +148,7 @@ static bool load_from_file(struct spmt_pt_entry *e) {
   uint8_t *kpage = pagedir_get_page(e->t->pagedir, e->upage);
   if (kpage == NULL) {
     kpage = frame_alloc(PAL_USER, e);
+    // printf("kpage: %p\n", kpage);
     if (kpage == NULL) {
       return false;
     }

@@ -142,7 +142,7 @@ static void page_fault(struct intr_frame *f) {
   asm("movl %%cr2, %0" : "=r"(fault_addr));
 
   /* Turn interrupts back on (they were only off so that we could
-     be assured of reading CR2 before it changed). */
+     be assured of reading CR2 before it changed). */ 
   intr_enable();
 
   /* Count page faults. */
@@ -159,6 +159,10 @@ static void page_fault(struct intr_frame *f) {
     // obtain the page the fault addr belongs to
     uint8_t *fault_page = pg_round_down(fault_addr);
     struct spmt_pt_entry *e = spmtpt_find(&t->spmt_pt, fault_page);
+
+   //  printf("e->upage: %p\n", e->upage);
+   //  printf("e->kpage: %p\n", e->kpage);
+   //  printf("e->status: %d\n", e->status);
 
     /* If it's user accessed, then we can get the esp in intr_frame
        otherwise if it's kernel accessed, in syscall, then we must get

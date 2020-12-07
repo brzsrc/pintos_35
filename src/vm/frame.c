@@ -24,15 +24,21 @@ void frame_init(void) { hash_init(&frame_table, frame_hash, frame_less, NULL); }
 
 void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   void *kpage = palloc_get_page(PAL_USER | pflag);
-
+  // printf("kpage2: %p\n", kpage);
   if (kpage == NULL) {
     struct frame_node *evicted_node = frame_evict();
+    // printf("evicted_node: %p\n", evicted_node);
+    //ASSERT(evicted_node != NULL);
     if(evicted_node == NULL) {
       evicted_node = frame_evict();
+      // printf("evicted_node2: %p\n", evicted_node);
+      //ASSERT(evicted_node != NULL);
     }
 
+    kpage = evicted_node->kpage;
     struct spmt_pt_entry *evicted_entry 
       = spmtpt_find(&evicted_node->t->spmt_pt, evicted_node->upage); 
+    // printf("evicted_entry: %p\n", evicted_entry);
 
     if(!pagedir_is_dirty(e->t->pagedir, kpage) || !evicted_entry->writable) {
         evicted_entry->status = IN_FILE;
@@ -43,7 +49,7 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
     }
 
     frame_node_free(evicted_node->kpage);
-    pagedir_clear_page(evicted_entry->t->pagedir, evicted_entry->upage);
+    pagedir_clear_page(evicted_entry->t->pagedir, evicted_entry->upage); 
   }
 
   struct frame_node *new_node =
