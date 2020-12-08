@@ -23,6 +23,19 @@ swap_init(void) {
     lock_init(&swap_lock);
 }
 
+void dump_page(void *addr) {
+    int size = PGSIZE;
+    printf("Memory address %p\n", addr);
+    printf("0\t");
+    while (size-- > 0) {
+        printf("0x%x ", *((uint8_t*)addr));
+        addr++;
+        if (size % 64 == 0) {
+            printf("\n%d\t", size / 64);
+        }
+    }
+}
+
 /* Read from swap table. */
 void 
 swap_read(sid_t sid, void *kpage) {
@@ -31,7 +44,10 @@ swap_read(sid_t sid, void *kpage) {
         block_read(swap_table, sid * SECTOR_NUM + i, kpage + (BLOCK_SECTOR_SIZE * i));
     }
     // lock_release(&swap_lock);
-
+    // dump_page(kpage);
+    // if(*(uint8_t*)kpage != 0x5a) {
+    //     printf("kpage = %p\n", kpage);
+    // }
     bitmap_reset (swap_bitmap, sid);
 };
 
@@ -40,6 +56,9 @@ sid_t
 swap_write(void *kpage) {
     sid_t sid = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
     // lock_acquire(&swap_lock);
+    // if(*(uint8_t*)kpage != 0x5a) {
+    //     printf("kpage = %p\n", kpage);
+    // }
     for(size_t i = 0; i < SECTOR_NUM; i++) {
         block_write(swap_table, sid * SECTOR_NUM + i, kpage + (BLOCK_SECTOR_SIZE * i));
     }

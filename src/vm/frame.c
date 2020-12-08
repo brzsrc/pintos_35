@@ -24,7 +24,7 @@ void frame_init(void) { hash_init(&frame_table, frame_hash, frame_less, NULL); }
 
 void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   void *kpage = palloc_get_page(PAL_USER | pflag);
-  printf("kpage2: %p\n", kpage);
+  // printf("kpage2: %p\n", kpage);
   if (kpage == NULL) {
     struct frame_node *evicted_node = frame_evict();
     // printf("evicted_node: %p\n", evicted_node);
@@ -62,14 +62,13 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
 }
 
 static struct frame_node *frame_evict(void) {
-    // somehow get the evicted kpage;
   struct hash_iterator i;
 
   hash_first (&i, &frame_table);
   while (hash_next (&i))
   {
     struct frame_node *node = hash_entry (hash_cur (&i), struct frame_node, hash_elem);
-    if(!pagedir_is_accessed (node->t->pagedir, node->kpage) && !node->pinned) {
+    if(!pagedir_is_accessed (node->t->pagedir, node->kpage)) {
       return node;
     } 
     pagedir_set_accessed (node->t->pagedir, node->kpage, false);
