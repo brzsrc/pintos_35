@@ -47,3 +47,11 @@ swap_write(void *kpage) {
 
     return sid;
 }
+
+void
+swap_free (sid_t sid)
+{
+  if (bitmap_test(swap_bitmap, sid))
+    return
+  bitmap_set(swap_bitmap, sid, true);
+}

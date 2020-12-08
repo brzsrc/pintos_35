@@ -494,7 +494,7 @@ static void munmap_entry(struct spmt_pt_entry *e) {
     }
 
     case IN_FRAME: {
-      if (pagedir_is_dirty(e->t->pagedir, e->upage)) {
+      if (pagedir_is_dirty(e->t->pagedir, e->upage) || e->is_dirty) {
         file_write_at(e->file, e->kpage, e->page_read_bytes, e->current_offset);
       }
       list_remove(&e->list_elem);
@@ -505,6 +505,13 @@ static void munmap_entry(struct spmt_pt_entry *e) {
     }
 
     case IN_SWAP:
+      if(e->is_dirty) {
+        void *kpage = palloc_get_page(PAL_ZERO);
+        swap_read(e->sid, kpage);
+        file_write_at(e->file, e->kpage, e->page_read_bytes, e->current_offset);
+        palloc_free_page(kpage);
+      }
+      swap_free(e->sid);
       break;
 
     case ALL_ZERO:

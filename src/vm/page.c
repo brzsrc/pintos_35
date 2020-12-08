@@ -78,13 +78,20 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
 
   switch (e->status) {
     case IN_FILE:
+      printf("in file\n");
       return load_from_file(e);
 
     case IN_FRAME:
       break;
 
     case IN_SWAP:
-      return load_from_swap_table(e);
+      printf("in swap\n");
+      bool is_reached = false;
+      if(load_from_swap_table(e)) {
+        is_reached = true;
+      }
+      printf("is_reached: %d\n", is_reached);
+      return is_reached;
 
     case ALL_ZERO:
       return load_all_zero(e);
@@ -96,7 +103,10 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
 }
 
 static bool load_from_swap_table(struct spmt_pt_entry *e) {
+  printf("1\n");
   void *kpage = frame_alloc(PAL_USER, e);
+  printf("2\n");
+  printf("kpage == NULL: %d\n", kpage == NULL);
   if (kpage == NULL) {
     return false;
   }
@@ -110,6 +120,7 @@ static bool load_from_swap_table(struct spmt_pt_entry *e) {
   }
 
   swap_read(e->sid, kpage);
+  printf("e->sid: %d\n", e->sid);
   e->status = IN_FRAME;
   e->kpage = kpage;
   e->sid = -1;

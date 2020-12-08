@@ -24,7 +24,7 @@ void frame_init(void) { hash_init(&frame_table, frame_hash, frame_less, NULL); }
 
 void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   void *kpage = palloc_get_page(PAL_USER | pflag);
-  // printf("kpage2: %p\n", kpage);
+  printf("kpage2: %p\n", kpage);
   if (kpage == NULL) {
     struct frame_node *evicted_node = frame_evict();
     // printf("evicted_node: %p\n", evicted_node);
@@ -40,13 +40,13 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
       = spmtpt_find(&evicted_node->t->spmt_pt, evicted_node->upage); 
     // printf("evicted_entry: %p\n", evicted_entry);
 
-    if(!pagedir_is_dirty(e->t->pagedir, kpage) || !evicted_entry->writable) {
-        evicted_entry->status = IN_FILE;
-    } else
-    {
-      evicted_entry->status = IN_SWAP;
-      e->sid = swap_write(evicted_node->kpage);
-    }
+    evicted_entry->is_dirty 
+      = pagedir_is_dirty(evicted_entry->t->pagedir, evicted_entry->upage) 
+        || evicted_entry->is_dirty;
+
+    evicted_entry->status = IN_SWAP;
+    evicted_entry->sid = swap_write(evicted_node->kpage);
+    evicted_entry->kpage = NULL;
 
     frame_node_free(evicted_node->kpage);
     pagedir_clear_page(evicted_entry->t->pagedir, evicted_entry->upage); 
@@ -57,7 +57,6 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
   new_node->upage = e->upage;
   new_node->kpage = kpage;
   new_node->t = e->t;
-  new_node->referenced = true;
   hash_insert(&frame_table, &new_node->hash_elem);
   return kpage;
 }
