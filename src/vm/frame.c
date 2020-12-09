@@ -39,6 +39,7 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
     struct spmt_pt_entry *evicted_entry 
       = spmtpt_find(&evicted_node->t->spmt_pt, evicted_node->upage); 
     // printf("evicted_entry: %p\n", evicted_entry);
+    pagedir_clear_page(evicted_node->t->pagedir, evicted_node->upage); 
 
     evicted_entry->is_dirty 
       = pagedir_is_dirty(evicted_entry->t->pagedir, evicted_entry->upage) 
@@ -49,7 +50,9 @@ void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
     evicted_entry->kpage = NULL;
 
     frame_node_free(evicted_node->kpage);
-    pagedir_clear_page(evicted_entry->t->pagedir, evicted_entry->upage); 
+
+    kpage = palloc_get_page(PAL_USER | pflag);
+  
   }
 
   struct frame_node *new_node =

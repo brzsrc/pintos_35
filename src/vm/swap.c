@@ -41,36 +41,37 @@ void
 swap_read(sid_t sid, void *kpage) {
     // lock_acquire(&swap_lock);
     for(size_t i = 0; i < SECTOR_NUM; i++) {
-        block_read(swap_table, sid * SECTOR_NUM + i, kpage + (BLOCK_SECTOR_SIZE * i));
+        block_read(swap_table, sid * SECTOR_NUM + i, kpage + BLOCK_SECTOR_SIZE * i);
     }
-    // lock_release(&swap_lock);
+   
     // dump_page(kpage);
     // if(*(uint8_t*)kpage != 0x5a) {
     //     printf("kpage = %p\n", kpage);
     // }
-    bitmap_reset (swap_bitmap, sid);
+    bitmap_reset (swap_bitmap, sid); 
+    // lock_release(&swap_lock);
 };
 
 /* Write to swap table, and return swap id. */
 sid_t
 swap_write(void *kpage) {
     sid_t sid = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
+    if ((size_t)sid == BITMAP_ERROR) {
+        PANIC("Swap table is full");
+    }
     // lock_acquire(&swap_lock);
     // if(*(uint8_t*)kpage != 0x5a) {
     //     printf("kpage = %p\n", kpage);
     // }
     for(size_t i = 0; i < SECTOR_NUM; i++) {
-        block_write(swap_table, sid * SECTOR_NUM + i, kpage + (BLOCK_SECTOR_SIZE * i));
+        block_write(swap_table, sid * SECTOR_NUM + i, kpage + BLOCK_SECTOR_SIZE * i);
     }
     // lock_release(&swap_lock);
-
     return sid;
 }
 
 void
 swap_free (sid_t sid)
 {
-  if (bitmap_test(swap_bitmap, sid))
-    return
-  bitmap_set(swap_bitmap, sid, true);
+  bitmap_reset(swap_bitmap, sid);
 }

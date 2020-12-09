@@ -108,7 +108,7 @@ static bool load_from_swap_table(struct spmt_pt_entry *e) {
   void *kpage = frame_alloc(PAL_USER, e);
   // printf("2\n");
   // printf("kpage == NULL: %d\n", kpage == NULL);
-  printf("upage: %p\n", e->upage);
+  // printf("upage: %p\n", e->upage);
   if (kpage == NULL) {
     return false;
   }
@@ -126,7 +126,6 @@ static bool load_from_swap_table(struct spmt_pt_entry *e) {
   e->status = IN_FRAME;
   e->kpage = kpage;
   e->sid = -1;
-
   pagedir_set_dirty(e->t->pagedir, kpage, false);
   pagedir_set_accessed (e->t->pagedir, kpage, false);
   return true;
