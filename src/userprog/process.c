@@ -577,7 +577,7 @@ static bool setup_stack(void **esp) {
 
   if (kpage == NULL) {
     ret = false;
-    goto free_resources;
+    spmtpt_entry_free(&t->spmt_pt, e);
   } 
 
   if (install_page(upage, kpage, true)) {
@@ -587,14 +587,8 @@ static bool setup_stack(void **esp) {
     e->kpage = kpage;
     e->sid = -1;
     ret = true;
-    goto success;
+    lock_release(&frame->lock);
   }
-    
-  free_resources:
-    spmtpt_entry_free(&t->spmt_pt, e);
-    
-  success:
-     lock_release(&frame->lock);
 
   return ret;
 }
