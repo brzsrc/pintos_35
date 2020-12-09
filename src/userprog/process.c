@@ -561,6 +561,7 @@ static bool setup_stack(void **esp) {
   uint8_t *kpage;
   uint8_t *upage = ((uint8_t *)PHYS_BASE) - PGSIZE;
   struct thread *t = thread_current();
+  bool ret = false;
 
   struct spmt_pt_entry *e =
       (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
@@ -571,10 +572,12 @@ static bool setup_stack(void **esp) {
     return false;
   }
 
-  kpage = frame_alloc(PAL_USER | PAL_ZERO, e);
-  if(kpage == NULL) {
-    spmtpt_entry_free(&t->spmt_pt, e);
-    return false;
+  struct frame_node *frame = frame_alloc(PAL_USER | PAL_ZERO, e);
+  kpage = frame->kpage;
+
+  if (kpage == NULL) {
+    ret = false;
+    goto free_resources;
   } 
 
   if (install_page(upage, kpage, true)) {
@@ -583,12 +586,17 @@ static bool setup_stack(void **esp) {
     e->status = IN_FRAME;
     e->kpage = kpage;
     e->sid = -1;
-    return true;
+    ret = true;
+    goto success;
   }
+    
+  free_resources:
+    spmtpt_entry_free(&t->spmt_pt, e);
+    
+  success:
+     lock_release(&frame->lock);
 
-  spmtpt_entry_free(&t->spmt_pt, e);
-  palloc_free_page(kpage);
-  return false;
+  return ret;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel

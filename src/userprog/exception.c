@@ -175,7 +175,7 @@ static void page_fault(struct intr_frame *f) {
     bool is_stack_addr =
         (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
 
-    if (is_stack_frame && is_stack_addr) {
+    if (e == NULL && is_stack_frame && is_stack_addr) {
       e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
       if (!spmtpt_entry_init(e, fault_page, true, ALL_ZERO, t)) {
         spmtpt_entry_free(&t->spmt_pt, e);

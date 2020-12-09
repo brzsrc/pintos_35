@@ -17,7 +17,8 @@ static bool spmtpt_less(const struct hash_elem *a_, const struct hash_elem *b_,
                         void *aux UNUSED);
 // static bool load_from_swap(struct spmt_pt_entry *e, struct thread *t);
 static bool load_from_file(struct spmt_pt_entry *e);
-static bool install_page(struct spmt_pt_entry *e, void *kpage);
+static bool install_page(struct spmt_pt_entry *e);
+static bool install_page_to_pagedir(struct spmt_pt_entry *e);
 static bool load_all_zero(struct spmt_pt_entry *e);
 static bool load_from_swap_table(struct spmt_pt_entry *e);
 
@@ -39,6 +40,7 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
   entry->is_dirty = false;
   entry->writable = writable;
   entry->sid = -1;
+  entry->kpage = NULL;
 
   if (spmtpt_insert(&t->spmt_pt, entry) != NULL) {
     // There exists an identical entry
@@ -103,100 +105,77 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   return false;
 }
 
+static bool install_page(struct spmt_pt_entry *page) {
+  ASSERT (page != NULL);
+  ASSERT (page->kpage == NULL);
+  struct frame_node *frame = frame_alloc(0, page);
+  
+  ASSERT (page->kpage != NULL);
+  ASSERT (install_page_to_pagedir(page));
+  lock_release(&frame->lock);
+
+  // if (!install_page(e)) {
+  //   NOT_REACHED();
+  //   spmtpt_entry_free(&e->t->spmt_pt, e);
+  //   frame_node_free(kpage);
+  //   return false;
+  // }
+  return true;
+}
+
 static bool load_from_swap_table(struct spmt_pt_entry *e) {
-  // printf("1\n");
-  void *kpage = frame_alloc(PAL_USER, e);
-  // printf("2\n");
-  // printf("kpage == NULL: %d\n", kpage == NULL);
-  // printf("upage: %p\n", e->upage);
-  if (kpage == NULL) {
-    return false;
-  }
-
-  /* Add the page to the process's address space. */
-  if (!install_page(e, kpage)) {
-    NOT_REACHED();
-    spmtpt_entry_free(&e->t->spmt_pt, e);
-    frame_node_free(kpage);
-    return false;
-  }
-
-  swap_read(e->sid, kpage);
-  // printf("e->sid: %d\n", e->sid);
+  
+  ASSERT (e->status == IN_SWAP);
+  install_page(e);
+  swap_read(e->sid, e->kpage);
+  // printf("*e->kpage: %p\n", *(uint8_t*)kpage);
   e->status = IN_FRAME;
-  e->kpage = kpage;
   e->sid = -1;
-  pagedir_set_dirty(e->t->pagedir, kpage, false);
-  pagedir_set_accessed (e->t->pagedir, kpage, false);
+
+  pagedir_set_dirty(e->t->pagedir, e->kpage, false);
+  pagedir_set_dirty(e->t->pagedir, e->upage, false);
+  pagedir_set_accessed (e->t->pagedir, e->kpage, false);
   return true;
 }
 
 static bool load_all_zero(struct spmt_pt_entry *e) {
-  void *kpage = frame_alloc(PAL_ZERO, e);
-  if (kpage == NULL) {
-    return false;
-  }
+  ASSERT (e->status == ALL_ZERO);
+  install_page(e);
 
-  /* Add the page to the process's address space. */
-  if (!install_page(e, kpage)) {
-    NOT_REACHED();
-    spmtpt_entry_free(&e->t->spmt_pt, e);
-    frame_node_free(kpage);
-    return false;
-  }
-
-  memset(kpage, 0, PGSIZE);
+  memset(e->kpage, 0, PGSIZE);
   e->status = IN_FRAME;
-  e->kpage = kpage;
   e->sid = -1;
 
-  pagedir_set_dirty(e->t->pagedir, kpage, false);
-  pagedir_set_accessed (e->t->pagedir, kpage, false);
+  pagedir_set_dirty(e->t->pagedir, e->kpage, false);
+  pagedir_set_accessed (e->t->pagedir, e->kpage, false);
   return true;
 }
 
 static bool load_from_file(struct spmt_pt_entry *e) {
-  /* Check if virtual page already allocated */
-  uint8_t *kpage = pagedir_get_page(e->t->pagedir, e->upage);
-  if (kpage == NULL) {
-    kpage = frame_alloc(PAL_USER, e);
-    // printf("kpage: %p\n", kpage);
-    if (kpage == NULL) {
-      return false;
-    }
-
-    /* Add the page to the process's address space. */
-    if (!install_page(e, kpage)) {
-      NOT_REACHED();
-      spmtpt_entry_free(&e->t->spmt_pt, e);
-      frame_node_free(kpage);
-      return false;
-    }
-
-    /* Load data into the page. */
-    file_sync_seek(e->file, e->current_offset);
-    if (file_sync_read(e->file, kpage, e->page_read_bytes) !=
-        (int)e->page_read_bytes) {
-      NOT_REACHED();
-      spmtpt_entry_free(&e->t->spmt_pt, e);
-      frame_node_free(kpage);
-      return false;
-    }
-
-    memset(kpage + e->page_read_bytes, 0, e->page_zero_bytes);
-    e->status = IN_FRAME;
-    e->kpage = kpage;
-    e->sid = -1;
-
-    pagedir_set_dirty(e->t->pagedir, kpage, false);
-    pagedir_set_accessed (e->t->pagedir, kpage, false);
-    return true;
-  } 
-  else {
-    // Something went wrong
+  install_page(e);
+  /* Load data into the page. */
+  file_sync_seek(e->file, e->current_offset);
+  if (file_sync_read(e->file, e->kpage, e->page_read_bytes) !=
+      (int)e->page_read_bytes) {
     NOT_REACHED();
+    // spmtpt_entry_free(&e->t->spmt_pt, e);
+    // frame_node_free(e->kpage);
     return false;
   }
+
+  memset(e->kpage + e->page_read_bytes, 0, e->page_zero_bytes);
+  e->status = IN_FRAME;
+  e->sid = -1;
+
+  pagedir_set_dirty(e->t->pagedir, e->kpage, false);
+  pagedir_set_accessed (e->t->pagedir, e->kpage, false);
+  return true;
+  // } 
+  // else {
+  //   // Something went wrong
+  //   NOT_REACHED();
+  //   return false;
+  // }
 }
 
 /* Use entry->upage as the key for hash */
@@ -246,11 +225,11 @@ void spmtpt_entry_free(struct hash *spmt_pt,
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-static bool install_page(struct spmt_pt_entry *e, void *kpage) {
+static bool install_page_to_pagedir(struct spmt_pt_entry *e) {
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   return (pagedir_get_page(e->t->pagedir, e->upage) == NULL &&
-          pagedir_set_page(e->t->pagedir, e->upage, kpage, e->writable));
+          pagedir_set_page(e->t->pagedir, e->upage, e->kpage, e->writable));
 }
 
 /* Lazily Loads a page starting at offset OFS in FILE at address

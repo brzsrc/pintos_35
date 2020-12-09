@@ -18,65 +18,73 @@ struct hash frame_table;
 static unsigned frame_hash(const struct hash_elem *f_, void *aux UNUSED);
 static bool frame_less(const struct hash_elem *a_, const struct hash_elem *b_,
                        void *aux UNUSED);
-static struct frame_node *frame_evict(void);
+static struct frame_node *frame_find_evict(void);
 
 void frame_init(void) { hash_init(&frame_table, frame_hash, frame_less, NULL); }
 
-void *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
-  void *kpage = palloc_get_page(PAL_USER | pflag);
-  // printf("kpage2: %p\n", kpage);
-  if (kpage == NULL) {
-    struct frame_node *evicted_node = frame_evict();
-    // printf("evicted_node: %p\n", evicted_node);
-    //ASSERT(evicted_node != NULL);
-    if(evicted_node == NULL) {
-      evicted_node = frame_evict();
-      // printf("evicted_node2: %p\n", evicted_node);
-      //ASSERT(evicted_node != NULL);
-    }
+struct frame_node *frame_alloc(enum palloc_flags pflag, struct spmt_pt_entry *e) {
+  void *palloc_kpage = palloc_get_page(PAL_USER | pflag);
+  struct frame_node *frame = NULL;
+  if (palloc_kpage == NULL) {
+    frame = frame_find_evict();
 
-    kpage = evicted_node->kpage;
-    struct spmt_pt_entry *evicted_entry 
-      = spmtpt_find(&evicted_node->t->spmt_pt, evicted_node->upage); 
-    // printf("evicted_entry: %p\n", evicted_entry);
-    pagedir_clear_page(evicted_node->t->pagedir, evicted_node->upage); 
+    ASSERT (frame != NULL);
+    ASSERT (frame->kpage != NULL);
+    ASSERT (lock_held_by_current_thread(&frame->lock));
 
-    evicted_entry->is_dirty 
-      = pagedir_is_dirty(evicted_entry->t->pagedir, evicted_entry->upage) 
-        || evicted_entry->is_dirty;
+    struct spmt_pt_entry *evicted_page = spmtpt_find(&frame->t->spmt_pt, frame->upage); 
 
-    evicted_entry->status = IN_SWAP;
-    evicted_entry->sid = swap_write(evicted_node->kpage);
-    evicted_entry->kpage = NULL;
+    ASSERT (evicted_page != NULL);
 
-    frame_node_free(evicted_node->kpage);
+    evicted_page->is_dirty 
+      = pagedir_is_dirty(frame->t->pagedir, frame->upage) 
+        || evicted_page->is_dirty;
 
-    kpage = palloc_get_page(PAL_USER | pflag);
-  
+    evicted_page->status = IN_SWAP;
+    evicted_page->sid = swap_write(frame->kpage);
+    evicted_page->kpage = NULL;
+
+    // frame_node_free(evicted_node);
+    pagedir_clear_page(evicted_page->t->pagedir, evicted_page->upage);
+
+    frame->upage = e->upage;
+    frame->t = e->t;
+    e->kpage = frame->kpage;
   }
-
-  struct frame_node *new_node =
-      (struct frame_node *)malloc(sizeof(struct frame_node));
-  new_node->upage = e->upage;
-  new_node->kpage = kpage;
-  new_node->t = e->t;
-  hash_insert(&frame_table, &new_node->hash_elem);
-  return kpage;
+  else {
+    frame = (struct frame_node *)malloc(sizeof(struct frame_node));
+    frame->upage = e->upage;
+    frame->kpage = palloc_kpage;
+    frame->t = e->t;
+    e->kpage = palloc_kpage;
+    lock_init(&frame->lock);
+    lock_acquire(&frame->lock);
+    hash_insert(&frame_table, &frame->hash_elem);
+  }
+  return frame;
 }
 
-static struct frame_node *frame_evict(void) {
+static struct frame_node *frame_find_evict(void) {
   struct hash_iterator i;
 
   hash_first (&i, &frame_table);
   while (hash_next (&i))
   {
     struct frame_node *node = hash_entry (hash_cur (&i), struct frame_node, hash_elem);
+    bool succ = lock_try_acquire(&node->lock);
+    if (!succ) continue;
+
     if(!pagedir_is_accessed (node->t->pagedir, node->kpage)) {
       return node;
     } 
     pagedir_set_accessed (node->t->pagedir, node->kpage, false);
+    lock_release(&node->lock);
   }
-  return NULL;
+  hash_first(&i, &frame_table);
+  struct frame_node *node = hash_entry (hash_cur (&i), struct frame_node, hash_elem);
+  lock_acquire(&node->lock);
+  return node;
+
 }
 
 /* Returns a hash value for frame_node f. */
