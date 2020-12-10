@@ -77,11 +77,11 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   if (!e) {
     return false;
   }
-
+  bool result = false;
   switch (e->status) {
     case IN_FILE:
-      // printf("in file\n");
-      return load_from_file(e);
+      result = load_from_file(e);
+      break;
 
     case IN_FRAME:
       break;
@@ -92,17 +92,20 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
       if (load_from_swap_table(e)) {
         is_reached = true;
       }
-      // printf("is_reached: %d\n", is_reached);
-      return is_reached;
+      result = is_reached;
+      break;
     }
 
     case ALL_ZERO:
-      return load_all_zero(e);
+      result = load_all_zero(e);
+      break;
 
     default:
+      printf("[BUG] Unreacheable");
       break;
   }
-  return false;
+
+  return result;
 }
 
 static bool install_page(struct spmt_pt_entry *page) {
@@ -113,27 +116,20 @@ static bool install_page(struct spmt_pt_entry *page) {
   ASSERT(page->kpage != NULL);
   ASSERT(install_page_to_pagedir(page));
   lock_release(&frame->lock);
-
-  // if (!install_page(e)) {
-  //   NOT_REACHED();
-  //   spmtpt_entry_free(&e->t->spmt_pt, e);
-  //   frame_node_free(kpage);
-  //   return false;
-  // }
   return true;
 }
 
 static bool load_from_swap_table(struct spmt_pt_entry *e) {
   ASSERT(e->status == IN_SWAP);
   install_page(e);
+
   swap_read(e->sid, e->kpage);
-  // printf("*e->kpage: %p\n", *(uint8_t*)kpage);
-  e->status = IN_FRAME;
-  e->sid = -1;
 
   pagedir_set_dirty(e->t->pagedir, e->kpage, false);
-  pagedir_set_dirty(e->t->pagedir, e->upage, false);
   pagedir_set_accessed(e->t->pagedir, e->kpage, false);
+  pagedir_set_dirty(e->t->pagedir, e->upage, false);
+  e->status = IN_FRAME;
+  e->sid = -1;
   return true;
 }
 
@@ -142,39 +138,30 @@ static bool load_all_zero(struct spmt_pt_entry *e) {
   install_page(e);
 
   memset(e->kpage, 0, PGSIZE);
-  e->status = IN_FRAME;
-  e->sid = -1;
 
   pagedir_set_dirty(e->t->pagedir, e->kpage, false);
   pagedir_set_accessed(e->t->pagedir, e->kpage, false);
+  e->status = IN_FRAME;
+  e->sid = -1;
   return true;
 }
 
 static bool load_from_file(struct spmt_pt_entry *e) {
+  ASSERT(e->status == IN_FILE);
   install_page(e);
+
   /* Load data into the page. */
   file_sync_seek(e->file, e->current_offset);
-  if (file_sync_read(e->file, e->kpage, e->page_read_bytes) !=
-      (int)e->page_read_bytes) {
-    NOT_REACHED();
-    // spmtpt_entry_free(&e->t->spmt_pt, e);
-    // frame_node_free(e->kpage);
-    return false;
-  }
+  ASSERT(file_sync_read(e->file, e->kpage, e->page_read_bytes) ==
+         (int)e->page_read_bytes);
 
   memset(e->kpage + e->page_read_bytes, 0, e->page_zero_bytes);
-  e->status = IN_FRAME;
-  e->sid = -1;
 
   pagedir_set_dirty(e->t->pagedir, e->kpage, false);
   pagedir_set_accessed(e->t->pagedir, e->kpage, false);
+  e->status = IN_FRAME;
+  e->sid = -1;
   return true;
-  // }
-  // else {
-  //   // Something went wrong
-  //   NOT_REACHED();
-  //   return false;
-  // }
 }
 
 /* Use entry->upage as the key for hash */
@@ -207,10 +194,9 @@ void spmtpt_free(struct hash *spmt_pt) {
   return;
 }
 
+// Free e, but not the underlying mem
 void spmtpt_entry_free(struct hash *spmt_pt,
                        struct spmt_pt_entry *spmtpt_entry) {
-  // TODO
-  // Should use frame alloc free page
   hash_delete(spmt_pt, &spmtpt_entry->hash_elem);
   free(spmtpt_entry);
 }
@@ -254,6 +240,7 @@ bool load_page_lazy(struct file *file, off_t ofs, uint8_t *upage,
   // There must not be any identical entry
   if (!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
     spmtpt_entry_free(&e->t->spmt_pt, e);
+    // printf("[BUG] Entry already exists\n");
     return false;
   }
 

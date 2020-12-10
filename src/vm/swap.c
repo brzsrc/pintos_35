@@ -14,13 +14,13 @@
 
 struct block *swap_table;
 struct bitmap *swap_bitmap;
-struct lock swap_lock;
+struct lock swap_bitmap_lock;
 
 /* Initialise swap table. */
 void swap_init(void) {
   swap_table = block_get_role(BLOCK_SWAP);
   swap_bitmap = bitmap_create(block_size(swap_table) / SECTOR_NUM);
-  lock_init(&swap_lock);
+  lock_init(&swap_bitmap_lock);
 }
 
 // void dump_page(void *addr) {
@@ -38,27 +38,22 @@ void swap_init(void) {
 
 /* Read from swap table. */
 void swap_read(sid_t sid, void *kpage) {
-  // lock_acquire(&swap_lock);
   for (size_t i = 0; i < SECTOR_NUM; i++) {
     block_read(swap_table, sid * SECTOR_NUM + i, kpage + BLOCK_SECTOR_SIZE * i);
   }
   bitmap_reset(swap_bitmap, sid);
-  // lock_release(&swap_lock);
 };
 
 /* Write to swap table, and return swap id. */
 sid_t swap_write(void *kpage) {
+  lock_acquire(&swap_bitmap_lock);
   sid_t sid = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
-  ASSERT(sid != BITMAP_ERROR);
-  // lock_acquire(&swap_lock);
-  // if(*(uint8_t*)kpage != 0x5a) {
-  //     printf("kpage = %p\n", kpage);
-  // }
+  lock_release(&swap_bitmap_lock);
+  ASSERT((unsigned)sid != BITMAP_ERROR);
   for (size_t i = 0; i < SECTOR_NUM; i++) {
     block_write(swap_table, sid * SECTOR_NUM + i,
                 kpage + BLOCK_SECTOR_SIZE * i);
   }
-  // lock_release(&swap_lock);
   return sid;
 }
 

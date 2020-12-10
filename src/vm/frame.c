@@ -46,7 +46,6 @@ struct frame_node *frame_alloc(enum palloc_flags pflag,
     evicted_page->sid = swap_write(frame->kpage);
     evicted_page->kpage = NULL;
 
-    // frame_node_free(evicted_node);
     pagedir_clear_page(evicted_page->t->pagedir, evicted_page->upage);
 
     frame->upage = e->upage;
@@ -78,9 +77,11 @@ static struct frame_node *frame_find_evict(void) {
     if (!pagedir_is_accessed(node->t->pagedir, node->kpage)) {
       return node;
     }
+    // Second chance
     pagedir_set_accessed(node->t->pagedir, node->kpage, false);
     lock_release(&node->lock);
   }
+  // Cannot decide so choose first frame
   hash_first(&i, &frame_table);
   struct frame_node *node =
       hash_entry(hash_cur(&i), struct frame_node, hash_elem);
@@ -106,7 +107,13 @@ void frame_node_free(void *kpage) {
   struct frame_node *node = frame_find(kpage);
   if (node) {
     hash_delete(&frame_table, &node->hash_elem);
-    if (kpage && kpage != 0xcccccccc) palloc_free_page(kpage);
+    if (kpage) {
+      if (kpage == (void *)0xcccccccc) {
+        printf("[BUG] Freeing twice");
+      } else {
+        palloc_free_page(kpage);
+      }
+    }
   }
   free(node);
 }
