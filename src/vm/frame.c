@@ -14,13 +14,17 @@
 #include "userprog/pagedir.h"
 
 struct hash frame_table;
+struct lock frame_table_lock;
 
 static unsigned frame_hash(const struct hash_elem *f_, void *aux UNUSED);
 static bool frame_less(const struct hash_elem *a_, const struct hash_elem *b_,
                        void *aux UNUSED);
 static struct frame_node *frame_find_evict(void);
 
-void frame_init(void) { hash_init(&frame_table, frame_hash, frame_less, NULL); }
+void frame_init(void) {
+  hash_init(&frame_table, frame_hash, frame_less, NULL);
+  lock_init(&frame_table_lock);
+}
 
 struct frame_node *frame_alloc(enum palloc_flags pflag,
                                struct spmt_pt_entry *e) {
@@ -43,10 +47,10 @@ struct frame_node *frame_alloc(enum palloc_flags pflag,
         evicted_page->is_dirty;
 
     evicted_page->status = IN_SWAP;
+    pagedir_clear_page(evicted_page->t->pagedir, evicted_page->upage);
     evicted_page->sid = swap_write(frame->kpage);
     evicted_page->kpage = NULL;
 
-    pagedir_clear_page(evicted_page->t->pagedir, evicted_page->upage);
 
     frame->upage = e->upage;
     frame->t = e->t;
@@ -67,6 +71,7 @@ struct frame_node *frame_alloc(enum palloc_flags pflag,
 static struct frame_node *frame_find_evict(void) {
   struct hash_iterator i;
 
+  lock_acquire(&frame_table_lock);
   hash_first(&i, &frame_table);
   while (hash_next(&i)) {
     struct frame_node *node =
@@ -75,6 +80,7 @@ static struct frame_node *frame_find_evict(void) {
     if (!succ) continue;
 
     if (!pagedir_is_accessed(node->t->pagedir, node->kpage)) {
+      lock_release(&frame_table_lock);
       return node;
     }
     // Second chance
@@ -85,6 +91,7 @@ static struct frame_node *frame_find_evict(void) {
   hash_first(&i, &frame_table);
   struct frame_node *node =
       hash_entry(hash_cur(&i), struct frame_node, hash_elem);
+  lock_release(&frame_table_lock);
   lock_acquire(&node->lock);
   return node;
 }
@@ -106,7 +113,9 @@ static bool frame_less(const struct hash_elem *a_, const struct hash_elem *b_,
 void frame_node_free(void *kpage) {
   struct frame_node *node = frame_find(kpage);
   if (node) {
+    lock_acquire(&frame_table_lock);
     hash_delete(&frame_table, &node->hash_elem);
+    lock_release(&frame_table_lock);
     if (kpage) {
       if (kpage == (void *)0xcccccccc) {
         printf("[BUG] Freeing twice");

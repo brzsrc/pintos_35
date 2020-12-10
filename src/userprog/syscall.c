@@ -498,8 +498,8 @@ static void munmap_entry(struct spmt_pt_entry *e) {
         file_write_at(e->file, e->kpage, e->page_read_bytes, e->current_offset);
       }
       list_remove(&e->list_elem);
-      frame_node_free(e->kpage);
       pagedir_clear_page(e->t->pagedir, e->upage);
+      frame_node_free(e->kpage);
       hash_delete(&e->t->spmt_pt, &e->hash_elem);
       break;
     }

@@ -266,6 +266,10 @@ void process_exit(void) {
   }
 
   // TODO destroy the supplemental page table of a user process
+  struct hash *pt = &cur->spmt_pt;
+  if (pt != NULL) {
+    spmtpt_free(pt);
+  }
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -281,11 +285,6 @@ void process_exit(void) {
     cur->pagedir = NULL;
     pagedir_activate(NULL);
     pagedir_destroy(pd);
-  }
-
-  struct hash *pt = &cur->spmt_pt;
-  if (pt != NULL) {
-    spmtpt_free(pt);
   }
 }
 

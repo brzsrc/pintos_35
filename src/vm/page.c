@@ -169,9 +169,17 @@ struct hash_elem *spmtpt_insert(struct hash *spmtpt,
   return e;
 }
 
+static void free_spmtpt_entry(struct hash_elem *e_, void *aux UNUSED) {
+  struct spmt_pt_entry *e = hash_entry(e_, struct spmt_pt_entry, hash_elem);
+  if (e->status == IN_FRAME) {
+    frame_node_free(e->kpage);
+  }
+  free(e);
+}
+
 void spmtpt_free(struct hash *spmt_pt) {
   // TODO free every entry and free the struct hash
-  // hash_destroy(spmt_pt, free_spmtpt_entry);
+  hash_destroy(spmt_pt, free_spmtpt_entry);
   return;
 }
 
