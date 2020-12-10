@@ -557,55 +557,23 @@ static bool load_segment_lazy(struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool setup_stack(void **esp) {
-  uint8_t *kpage;
   uint8_t *upage = ((uint8_t *)PHYS_BASE) - PGSIZE;
   struct thread *t = thread_current();
-  bool ret = false;
 
   struct spmt_pt_entry *e =
       (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
   // There must not be any identical entry
-  if (!spmtpt_entry_init(e, upage, true, IN_FRAME, t)) {
+  if (!spmtpt_entry_init(e, upage, true, ALL_ZERO, t)) {
     free(e);
     return false;
   }
 
-  struct frame_node *frame = frame_alloc(PAL_USER | PAL_ZERO, e);
-  kpage = frame->kpage;
+  bool success = spmtpt_load_page(e);
 
-  if (kpage == NULL) {
-    ret = false;
-    spmtpt_entry_free(&t->spmt_pt, e);
-  }
-
-  if (install_page(upage, kpage, true)) {
+  if (success) {
     *esp = PHYS_BASE;
-    memset(kpage, 0, PGSIZE);
-    e->status = IN_FRAME;
-    e->kpage = kpage;
-    e->sid = -1;
-    ret = true;
-    lock_release(&frame->lock);
   }
 
-  return ret;
-}
-
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool install_page(void *upage, void *kpage, bool writable) {
-  struct thread *t = thread_current();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page(t->pagedir, upage) == NULL &&
-          pagedir_set_page(t->pagedir, upage, kpage, writable));
+  return success;
 }
