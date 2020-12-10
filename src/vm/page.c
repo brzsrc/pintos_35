@@ -77,22 +77,19 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   if (!e) {
     return false;
   }
+  if (e->status == IN_FRAME) {
+    return true;
+  }
+
   bool result = false;
+  install_page(e);
   switch (e->status) {
     case IN_FILE:
       result = load_from_file(e);
       break;
-
-    case IN_FRAME:
-      break;
-
     case IN_SWAP: {
-      // printf("in swap\n");
-      bool is_reached = false;
-      if (load_from_swap_table(e)) {
-        is_reached = true;
-      }
-      result = is_reached;
+      result = load_from_swap_table(e);
+      pagedir_set_dirty(e->t->pagedir, e->upage, false);
       break;
     }
 
@@ -101,10 +98,14 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
       break;
 
     default:
-      printf("[BUG] Unreacheable");
+      printf("[BUG] Unreacheable\n");
       break;
   }
 
+  pagedir_set_dirty(e->t->pagedir, e->kpage, false);
+  pagedir_set_accessed(e->t->pagedir, e->kpage, false);
+  e->status = IN_FRAME;
+  e->sid = -1;
   return result;
 }
 
@@ -121,46 +122,26 @@ static bool install_page(struct spmt_pt_entry *page) {
 
 static bool load_from_swap_table(struct spmt_pt_entry *e) {
   ASSERT(e->status == IN_SWAP);
-  install_page(e);
 
   swap_read(e->sid, e->kpage);
-
-  pagedir_set_dirty(e->t->pagedir, e->kpage, false);
-  pagedir_set_accessed(e->t->pagedir, e->kpage, false);
-  pagedir_set_dirty(e->t->pagedir, e->upage, false);
-  e->status = IN_FRAME;
-  e->sid = -1;
   return true;
 }
 
 static bool load_all_zero(struct spmt_pt_entry *e) {
   ASSERT(e->status == ALL_ZERO);
-  install_page(e);
 
   memset(e->kpage, 0, PGSIZE);
-
-  pagedir_set_dirty(e->t->pagedir, e->kpage, false);
-  pagedir_set_accessed(e->t->pagedir, e->kpage, false);
-  e->status = IN_FRAME;
-  e->sid = -1;
   return true;
 }
 
 static bool load_from_file(struct spmt_pt_entry *e) {
   ASSERT(e->status == IN_FILE);
-  install_page(e);
 
-  /* Load data into the page. */
   file_sync_seek(e->file, e->current_offset);
   ASSERT(file_sync_read(e->file, e->kpage, e->page_read_bytes) ==
          (int)e->page_read_bytes);
 
   memset(e->kpage + e->page_read_bytes, 0, e->page_zero_bytes);
-
-  pagedir_set_dirty(e->t->pagedir, e->kpage, false);
-  pagedir_set_accessed(e->t->pagedir, e->kpage, false);
-  e->status = IN_FRAME;
-  e->sid = -1;
   return true;
 }
 
