@@ -89,7 +89,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
     case IN_SWAP: {
       // printf("in swap\n");
       bool is_reached = false;
-      if(load_from_swap_table(e)) {
+      if (load_from_swap_table(e)) {
         is_reached = true;
       }
       // printf("is_reached: %d\n", is_reached);
@@ -106,12 +106,12 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
 }
 
 static bool install_page(struct spmt_pt_entry *page) {
-  ASSERT (page != NULL);
-  ASSERT (page->kpage == NULL);
+  ASSERT(page != NULL);
+  ASSERT(page->kpage == NULL);
   struct frame_node *frame = frame_alloc(0, page);
-  
-  ASSERT (page->kpage != NULL);
-  ASSERT (install_page_to_pagedir(page));
+
+  ASSERT(page->kpage != NULL);
+  ASSERT(install_page_to_pagedir(page));
   lock_release(&frame->lock);
 
   // if (!install_page(e)) {
@@ -124,8 +124,7 @@ static bool install_page(struct spmt_pt_entry *page) {
 }
 
 static bool load_from_swap_table(struct spmt_pt_entry *e) {
-  
-  ASSERT (e->status == IN_SWAP);
+  ASSERT(e->status == IN_SWAP);
   install_page(e);
   swap_read(e->sid, e->kpage);
   // printf("*e->kpage: %p\n", *(uint8_t*)kpage);
@@ -134,12 +133,12 @@ static bool load_from_swap_table(struct spmt_pt_entry *e) {
 
   pagedir_set_dirty(e->t->pagedir, e->kpage, false);
   pagedir_set_dirty(e->t->pagedir, e->upage, false);
-  pagedir_set_accessed (e->t->pagedir, e->kpage, false);
+  pagedir_set_accessed(e->t->pagedir, e->kpage, false);
   return true;
 }
 
 static bool load_all_zero(struct spmt_pt_entry *e) {
-  ASSERT (e->status == ALL_ZERO);
+  ASSERT(e->status == ALL_ZERO);
   install_page(e);
 
   memset(e->kpage, 0, PGSIZE);
@@ -147,7 +146,7 @@ static bool load_all_zero(struct spmt_pt_entry *e) {
   e->sid = -1;
 
   pagedir_set_dirty(e->t->pagedir, e->kpage, false);
-  pagedir_set_accessed (e->t->pagedir, e->kpage, false);
+  pagedir_set_accessed(e->t->pagedir, e->kpage, false);
   return true;
 }
 
@@ -168,9 +167,9 @@ static bool load_from_file(struct spmt_pt_entry *e) {
   e->sid = -1;
 
   pagedir_set_dirty(e->t->pagedir, e->kpage, false);
-  pagedir_set_accessed (e->t->pagedir, e->kpage, false);
+  pagedir_set_accessed(e->t->pagedir, e->kpage, false);
   return true;
-  // } 
+  // }
   // else {
   //   // Something went wrong
   //   NOT_REACHED();

@@ -578,7 +578,7 @@ static bool setup_stack(void **esp) {
   if (kpage == NULL) {
     ret = false;
     spmtpt_entry_free(&t->spmt_pt, e);
-  } 
+  }
 
   if (install_page(upage, kpage, true)) {
     *esp = PHYS_BASE;

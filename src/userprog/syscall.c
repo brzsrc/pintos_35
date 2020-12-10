@@ -499,13 +499,13 @@ static void munmap_entry(struct spmt_pt_entry *e) {
       }
       list_remove(&e->list_elem);
       frame_node_free(e->kpage);
-      pagedir_clear_page(e->t->pagedir, e->upage); 
+      pagedir_clear_page(e->t->pagedir, e->upage);
       hash_delete(&e->t->spmt_pt, &e->hash_elem);
       break;
     }
 
     case IN_SWAP:
-      if(e->is_dirty) {
+      if (e->is_dirty) {
         void *kpage = palloc_get_page(PAL_ZERO);
         swap_read(e->sid, kpage);
         file_write_at(e->file, e->kpage, e->page_read_bytes, e->current_offset);
