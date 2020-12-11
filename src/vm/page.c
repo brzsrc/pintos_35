@@ -175,8 +175,15 @@ static void free_spmtpt_entry(struct hash_elem *e_, void *aux UNUSED) {
   struct spmt_pt_entry *e = hash_entry(e_, struct spmt_pt_entry, hash_elem);
 
   lock_acquire(&e->modify_lock);
-  if (e->status == IN_FRAME) {
-    frame_node_free(e->kpage);
+  switch (e->status) {
+    case IN_FRAME:
+      frame_node_free(e->kpage);
+      break;
+    case IN_SWAP:
+      swap_free(e->sid);
+      break;
+    default:
+      break;
   }
   lock_release(&e->modify_lock);
   free(e);
