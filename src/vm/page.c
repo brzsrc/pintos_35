@@ -49,13 +49,11 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
       return false;
     }
     lock_acquire(&e->modify_lock);
-    entry->upage = e->upage;
-    entry->status = e->status;
-    entry->t = t;
-    entry->is_dirty = false;
-    entry->writable = writable || e->writable;
-    entry->sid = -1;
-    entry->kpage = NULL;
+    e->upage = entry->upage;
+    e->status = entry->status;
+    e->t = t;
+    e->is_dirty = false;
+    e->writable = writable || e->writable;
     lock_release(&e->modify_lock);
     return true;
   }
