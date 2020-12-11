@@ -10,6 +10,7 @@
 
 #include <debug.h>
 #include <list.h>
+#include <hash.h>
 #include <stdint.h>
 
 #include "fixed_point.h"
@@ -116,6 +117,10 @@ struct thread {
   /* Shared between thread.c and systemcall.c. */
   struct list
       opened_files; /* The list of all the open files the thread holds */
+  struct list mmaped_files;
+  uint8_t *esp;
+  int mmaped_cnt;
+  int opened_cnt;
 
   struct list childs; /* The list of child processes the thread holds */
   struct child *child; /* the child struct the thread holds */
@@ -125,6 +130,9 @@ struct thread {
 
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */
+
+  /* shared between thread.c, page.c and process.c */
+  struct hash spmt_pt; /* the supplymental page table the thread holds */
 };
 
 /* If false (default), use round-robin scheduler.

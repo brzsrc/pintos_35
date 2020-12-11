@@ -2,11 +2,23 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+#include "filesys/directory.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "userprog/gdt.h"
+#include "userprog/pagedir.h"
 #include "userprog/syscall.h"
+#include "vm/frame.h"
+#include "vm/page.h"
+
+#define MAX_STACK_SIZE 0x800000
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -82,7 +94,9 @@ static void kill(struct intr_frame *f) {
       printf("%s: dying due to interrupt %#04x (%s).\n", thread_name(),
              f->vec_no, intr_name(f->vec_no));
       intr_dump_frame(f);
-      thread_exit();
+      syscall_exit_helper(-1);
+      NOT_REACHED();
+      break;
 
     case SEL_KCSEG:
       /* Kernel's code segment, which indicates a kernel bug.
@@ -93,11 +107,11 @@ static void kill(struct intr_frame *f) {
       PANIC("Kernel bug - unexpected interrupt in kernel");
 
     default:
-      /* Some other code segment?  Shouldn't happen.  Panic the
-         kernel. */
+      /* Some other code segment?
+         Shouldn't happen.  Panic the kernel. */
       printf("Interrupt %#04x (%s) in unknown segment %04x\n", f->vec_no,
              intr_name(f->vec_no), f->cs);
-      thread_exit();
+      PANIC("Kernel bug - this shouldn't be possible!");
   }
 }
 
@@ -139,15 +153,53 @@ static void page_fault(struct intr_frame *f) {
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+  struct thread *t = thread_current();
+
+  if (not_present) {
+    // obtain the page the fault addr belongs to
+    uint8_t *fault_page = pg_round_down(fault_addr);
+    struct spmt_pt_entry *e = spmtpt_find(&t->spmt_pt, fault_page);
+
+    //  printf("e->upage: %p\n", e->upage);
+    //  printf("e->kpage: %p\n", e->kpage);
+    //  printf("e->status: %d\n", e->status);
+
+    /* If it's user accessed, then we can get the esp in intr_frame
+       otherwise if it's kernel accessed, in syscall, then we must get
+       the esp from t->esp */
+    void *esp = user ? f->esp : t->esp;
+
+    /* Here is used to check if we need to grow the stack */
+    bool is_stack_frame =
+        (fault_addr >= esp || fault_addr == esp - 4 || fault_addr == esp - 32);
+    bool is_stack_addr =
+        (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
+
+    if (e == NULL && is_stack_frame && is_stack_addr) {
+      e = (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
+      if (!spmtpt_entry_init(e, fault_page, true, ALL_ZERO, t)) {
+        spmtpt_entry_free(&t->spmt_pt, e);
+        kill(f);
+      }
+    }
+
+    if (spmtpt_load_page(e)) return;
+  }
+
+  /* if the page fault is not caused by stack_growth/load_page/present?,
+     then we should kill it/exit with an error code */
+
+  // this used to handle error code
+  // when an invalid pointer causes a page fault
+  if (!user) {
+    f->eip = (void *)f->eax;
+    f->eax = 0xffffffff;
+    return;
+  }
+
+  /* for page_fault cannot be handled, kill it */
   printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
          not_present ? "not present" : "rights violation",
          write ? "writing" : "reading", user ? "user" : "kernel");
-  if (user) {
-    syscall_exit_helper(-1);
-  } else {
-    kill(f);
-  }
+  kill(f);
 }

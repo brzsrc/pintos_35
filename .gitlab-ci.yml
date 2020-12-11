@@ -26,9 +26,12 @@ build1:
 test1:
   stage: test
   script:
-    - echo "Do a test here"
-    - echo "For example run a test suite"
+    - echo "Test if we can boot"
     - cd src/vm
     - make clean
+    - make
+    - cd build
     - make check
     - make grade
+#    - make tests/userprog/args-none.output
+#    - perl -I../.. ../../tests/userprog/args-none.ck tests/userprog/args-none tests/userprog/args-none.result
