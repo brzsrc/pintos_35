@@ -6,7 +6,6 @@
 #include "filesys/file.h"
 #include "page.h"
 #include "threads/malloc.h"
-#include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
@@ -41,6 +40,7 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
   entry->writable = writable;
   entry->sid = -1;
   entry->kpage = NULL;
+  lock_init(&entry->modify_lock);
 
   if (spmtpt_insert(&t->spmt_pt, entry) != NULL) {
     // There exists an identical entry
@@ -82,6 +82,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   }
 
   bool result = false;
+  lock_acquire(&e->modify_lock);
   install_page(e);
   switch (e->status) {
     case IN_FILE:
@@ -106,6 +107,7 @@ bool spmtpt_load_page(struct spmt_pt_entry *e) {
   pagedir_set_accessed(e->t->pagedir, e->kpage, false);
   e->status = IN_FRAME;
   e->sid = -1;
+  lock_release(&e->modify_lock);
   return result;
 }
 
@@ -171,9 +173,12 @@ struct hash_elem *spmtpt_insert(struct hash *spmtpt,
 
 static void free_spmtpt_entry(struct hash_elem *e_, void *aux UNUSED) {
   struct spmt_pt_entry *e = hash_entry(e_, struct spmt_pt_entry, hash_elem);
+
+  lock_acquire(&e->modify_lock);
   if (e->status == IN_FRAME) {
     frame_node_free(e->kpage);
   }
+  lock_release(&e->modify_lock);
   free(e);
 }
 

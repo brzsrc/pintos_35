@@ -40,6 +40,7 @@ struct frame_node *frame_alloc(enum palloc_flags pflag,
     struct spmt_pt_entry *evicted_page =
         spmtpt_find(&frame->t->spmt_pt, frame->upage);
 
+    lock_acquire(&evicted_page->modify_lock);
     ASSERT(evicted_page != NULL);
 
     evicted_page->is_dirty =
@@ -50,8 +51,8 @@ struct frame_node *frame_alloc(enum palloc_flags pflag,
     pagedir_clear_page(evicted_page->t->pagedir, evicted_page->upage);
     evicted_page->sid = swap_write(frame->kpage);
     evicted_page->kpage = NULL;
-
-
+    lock_release(&evicted_page->modify_lock);
+    
     frame->upage = e->upage;
     frame->t = e->t;
     e->kpage = frame->kpage;
