@@ -29,7 +29,6 @@
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 static void child_init(struct child *child);
-static bool install_page(void *upage, void *kpage, bool writable);
 
 /* Store number of arguments*/
 int argc;

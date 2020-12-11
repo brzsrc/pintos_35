@@ -41,6 +41,8 @@ static void fill_in_rw_details(struct rw_detail *detail, bool isWrite,
 static void swap_async_read(void *read_details_) {
   struct rw_detail *read_details = read_details_;
   ASSERT(!read_details->isWrite);
+  thread_set_nice(10);
+  thread_set_priority(PRI_DEFAULT - 1);
   for (size_t i = 0; i < SECTOR_NUM; i++) {
     block_read(swap_table, read_details->sid * SECTOR_NUM + i,
                read_details->kpage + BLOCK_SECTOR_SIZE * i);
@@ -61,6 +63,8 @@ void swap_read(sid_t sid, void *kpage) {
 static void swap_async_write(void *write_details_) {
   struct rw_detail *write_details = write_details_;
   ASSERT(write_details->isWrite);
+  thread_set_nice(-10);
+  thread_set_priority(PRI_DEFAULT + 1);
   for (size_t i = 0; i < SECTOR_NUM; i++) {
     block_write(swap_table, write_details->sid * SECTOR_NUM + i,
                 write_details->kpage + BLOCK_SECTOR_SIZE * i);
