@@ -42,7 +42,7 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
   entry->kpage = NULL;
   lock_init(&entry->modify_lock);
   struct hash_elem *e_;
-  if (e_ = spmtpt_insert(&t->spmt_pt, entry) != NULL) {
+  if ((e_ = spmtpt_insert(&t->spmt_pt, entry)) != NULL) {
     // There exists an identical entry
     struct spmt_pt_entry *e = hash_entry(e_, struct spmt_pt_entry, hash_elem);
     if (e->page_zero_bytes == PGSIZE) {
