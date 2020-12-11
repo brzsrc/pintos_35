@@ -49,11 +49,12 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
       return false;
     }
     lock_acquire(&e->modify_lock);
-    e->upage = entry->upage;
-    e->status = entry->status;
     e->t = t;
     e->is_dirty = false;
-    e->writable = writable || e->writable;
+    e->writable = writable || entry->writable;
+    e->page_read_bytes = entry->page_read_bytes;
+    e->page_zero_bytes = entry->page_zero_bytes;
+    e->current_offset = entry->current_offset;
     lock_release(&e->modify_lock);
     return true;
   }
@@ -249,6 +250,8 @@ bool load_page_lazy(struct file *file, off_t ofs, uint8_t *upage,
   struct spmt_pt_entry *e =
       (struct spmt_pt_entry *)malloc(sizeof(struct spmt_pt_entry));
 
+  spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
+                              current_offset, file);
   // There must not be any identical entry
   if (!spmtpt_entry_init(e, upage, writable, IN_FILE, t)) {
     spmtpt_entry_free(&e->t->spmt_pt, e);
@@ -256,8 +259,6 @@ bool load_page_lazy(struct file *file, off_t ofs, uint8_t *upage,
     return false;
   }
 
-  spmtpt_fill_in_load_details(e, page_read_bytes, page_zero_bytes,
-                              current_offset, file);
 
   *entry = e;
   return true;
