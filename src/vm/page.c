@@ -41,10 +41,23 @@ bool spmtpt_entry_init(struct spmt_pt_entry *entry, void *upage, bool writable,
   entry->sid = -1;
   entry->kpage = NULL;
   lock_init(&entry->modify_lock);
-
-  if (spmtpt_insert(&t->spmt_pt, entry) != NULL) {
+  struct hash_elem *e_;
+  if (e_ = spmtpt_insert(&t->spmt_pt, entry) != NULL) {
     // There exists an identical entry
-    return false;
+    struct spmt_pt_entry *e = hash_entry(e_, struct spmt_pt_entry, hash_elem);
+    if (e->page_zero_bytes == PGSIZE) {
+      return false;
+    }
+    lock_acquire(&e->modify_lock);
+    entry->upage = e->upage;
+    entry->status = e->status;
+    entry->t = t;
+    entry->is_dirty = false;
+    entry->writable = writable || e->writable;
+    entry->sid = -1;
+    entry->kpage = NULL;
+    lock_release(&e->modify_lock);
+    return true;
   }
   return true;
 }
